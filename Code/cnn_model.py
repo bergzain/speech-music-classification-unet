@@ -5,6 +5,7 @@
 
 
 import torch.nn as nn
+import torch
 
 
 # In[3]:
@@ -46,10 +47,6 @@ class CNNModel(nn.Module):
         x = x.view(x.size(0), -1)  # Flatten the tensor
         x = self.fc(x)
         return x
-
-
-# In[ ]:
-
 
 
 

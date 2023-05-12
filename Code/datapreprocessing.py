@@ -4,7 +4,6 @@
 # In[52]:
 
 
-AUDIO_DIR = "/Users/zainhazzouri/projects/Bachelor_Thesis/Data/Kaggle/"
 SAMPLE_RATE = 22050 # sample rate of the audio file
 bit_depth = 16 # bit depth of the audio file
 hop_length = 512
@@ -12,6 +11,10 @@ n_mfcc = 20 # number of MFCCs features
 n_fft=1024, # window size
 n_mels = 256 # number of mel bands to generate
 win_length = None # window length
+target_sample_rate = 22050 # target sample rate
+num_samples = 22050 # number of samples
+target_length = target_sample_rate
+
 
 
 
@@ -27,22 +30,23 @@ import librosa.display
 import numpy as np
 import matplotlib.pyplot as plt
 import IPython.display as ipd
+from torch.utils.data import Dataset
+import os
+
 
 
 # In[57]:
 
 
-music_waves = glob.glob(AUDIO_DIR + "music_wav" + "/*.wav")
-music_waves
 
 
 # In[61]:
 
 
-AUDIO_DIR = "/Users/zainhazzouri/projects/Bachelor_Thesis/Data/Kaggle/"
 
-class AudioProcessor:
-    def __init__(self, audio_dir, n_mfcc=n_mfcc):
+
+class AudioProcessor(Dataset):
+    def __init__(self, audio_dir, n_mfcc=n_mfcc, target_sample_rate=target_sample_rate,num_samples=num_samples):
         self.audio_dir = audio_dir
         self.n_mfcc = n_mfcc
         self.device = self.get_device()
@@ -51,12 +55,14 @@ class AudioProcessor:
         self.mix_waves = []
         self.silence_waves = []
         self.load_audio_files()
+        self.target_sample_rate = target_sample_rate
+        self.num_samples = num_samples
 
     def load_audio_files(self):
-        self.music_waves = glob.glob(self.audio_dir + "music_wav" + "/*.wav")
-        self.speech_waves = glob.glob(self.audio_dir + "speech_wav" + "/*.wav")
-        self.mix_waves = glob.glob(self.audio_dir + "Mix_wav" + "/*.wav")
-        self.silence_waves = glob.glob(self.audio_dir + "silence_wav" + "/*.wav")
+        self.music_waves = glob.glob(os.path.join(self.audio_dir, "music_wav", "*.wav"))
+        self.speech_waves = glob.glob(os.path.join(self.audio_dir, "speech_wav", "*.wav"))
+        self.mix_waves = glob.glob(os.path.join(self.audio_dir, "Mix_wav", "*.wav"))
+        self.silence_waves = glob.glob(os.path.join(self.audio_dir, "silence_wav", "*.wav"))
         print("Music waves:", self.music_waves)
         print("Speech waves:", self.speech_waves)
         print("Mix waves:", self.mix_waves)
@@ -70,16 +76,21 @@ class AudioProcessor:
         else:
             return "cpu"
 
-    def preprocess(self, filepath, target_length=8000, sample_rate=SAMPLE_RATE):
+    def preprocess(self, filepath, target_length= target_length, sample_rate=SAMPLE_RATE):
         waveform, _ = torchaudio.load(filepath)
-        waveform_length = waveform.size(1)
+        # waveform_length = waveform.size(1)
+        #
+        # if waveform_length < target_length:
+        #     num_padding = target_length - waveform_length
+        #     padding = torch.zeros(1, num_padding)
+        #     waveform = torch.cat((waveform, padding), 1)
+        # elif waveform_length > target_length:
+        #     waveform = waveform[:, :target_length]
 
-        if waveform_length < target_length:
-            num_padding = target_length - waveform_length
-            padding = torch.zeros(1, num_padding)
-            waveform = torch.cat((waveform, padding), 1)
-        elif waveform_length > target_length:
-            waveform = waveform[:, :target_length]
+        waveform = self._resample_if_necessary(waveform, sample_rate) # resample if necessary
+        waveform = self._mix_down_if_necessary(waveform) # convert stereo to mono
+        waveform = self._right_pad_if_necessary(waveform) # pad if necessary
+        waveform = self._cut_if_necessary(waveform) # cut if necessary
 
         mfcc = torchaudio.transforms.MFCC(sample_rate=sample_rate, n_mfcc=self.n_mfcc)(waveform)
         return mfcc
@@ -103,6 +114,31 @@ class AudioProcessor:
 
         waveform = self.preprocess(file_path)
         return waveform, label
+
+    def _cut_if_necessary(self, signal):
+        if signal.shape[1] > self.num_samples:
+            signal = signal[:, :self.num_samples]
+        return signal
+
+    def _right_pad_if_necessary(self, signal):
+        length_signal = signal.shape[1]
+        if length_signal < self.num_samples:
+            num_missing_samples = self.num_samples - length_signal
+            last_dim_padding = (0, num_missing_samples)
+            signal = torch.nn.functional.pad(signal, last_dim_padding)
+        return signal
+
+    def _resample_if_necessary(self, signal, sr):
+        if sr != self.target_sample_rate:
+            resampler = torchaudio.transforms.Resample(sr, self.target_sample_rate)
+            signal = resampler(signal)
+        return signal
+
+    def _mix_down_if_necessary(self, signal):
+        if signal.shape[0] > 1:
+            signal = torch.mean(signal, dim=0, keepdim=True)
+        return signal
+
 
     def play_audio_samples(self):
         music_sample = random.choice(self.music_waves)
@@ -163,7 +199,7 @@ class AudioProcessor:
 
 
 if __name__ == '__main__':
-    AUDIO_DIR = "/Users/zainhazzouri/projects/Bachelor_Thesis/Data/Kaggle/"
+    AUDIO_DIR = "/Users/zainhazzouri/projects/Bachelor_Thesis/Data/train"
     audio_processor = AudioProcessor(AUDIO_DIR)
     audio_processor.process_and_visualize()
 
