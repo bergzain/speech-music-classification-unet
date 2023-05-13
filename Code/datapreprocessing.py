@@ -57,6 +57,7 @@ class AudioProcessor(Dataset):
         self.load_audio_files()
         self.target_sample_rate = target_sample_rate
         self.num_samples = num_samples
+        self.audio_files_and_labels = self.load_audio_files_and_labels()
 
     def load_audio_files(self):
         self.music_waves = glob.glob(os.path.join(self.audio_dir, "music_wav", "*.wav"))
@@ -95,23 +96,20 @@ class AudioProcessor(Dataset):
         mfcc = torchaudio.transforms.MFCC(sample_rate=sample_rate, n_mfcc=self.n_mfcc)(waveform)
         return mfcc
 
+    def load_audio_files_and_labels(self):
+        categories = ['music_wav', 'speech_wav', 'Mix_wav', 'silence_wav'] # music_wav = 0, speech_wav = 1, Mix_wav = 2, silence_wav = 3
+        files_and_labels = []
+        for i, category in enumerate(categories):
+            files_in_category = glob.glob(os.path.join(self.audio_dir, category, "*.wav"))
+            for file_path in files_in_category:
+                files_and_labels.append((file_path, i))
+        return files_and_labels
+
     def __len__(self):
-        return len(self.music_waves) + len(self.speech_waves) + len(self.mix_waves) + len(self.silence_waves)
+        return len(self.audio_files_and_labels)
 
     def __getitem__(self, idx):
-        if idx < len(self.music_waves):
-            file_path = self.music_waves[idx]
-            label = 0
-        elif idx < len(self.music_waves) + len(self.speech_waves):
-            file_path = self.speech_waves[idx - len(self.music_waves)]
-            label = 1
-        elif idx < len(self.music_waves) + len(self.speech_waves) + len(self.mix_waves):
-            file_path = self.mix_waves[idx - len(self.music_waves) - len(self.speech_waves)]
-            label = 2
-        else:
-            file_path = self.silence_waves[idx - len(self.music_waves) - len(self.speech_waves) - len(self.mix_waves)]
-            label = 3
-
+        file_path, label = self.audio_files_and_labels[idx]
         waveform = self.preprocess(file_path)
         return waveform, label
 
