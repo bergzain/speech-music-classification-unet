@@ -1,24 +1,13 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[52]:
-
-
 SAMPLE_RATE = 22050 # sample rate of the audio file
 bit_depth = 16 # bit depth of the audio file
 hop_length = 512
-n_mfcc = 20 # number of MFCCs features
+n_mfcc = 32 # number of MFCCs features
 n_fft=1024, # window size
 n_mels = 256 # number of mel bands to generate
 win_length = None # window length
 target_sample_rate = 22050 # target sample rate
 num_samples = 22050 # number of samples
 target_length = target_sample_rate
-
-
-
-
-# In[53]:
 
 
 import glob
@@ -35,12 +24,7 @@ import os
 
 
 
-# In[57]:
 
-
-
-
-# In[61]:
 
 
 
@@ -64,10 +48,10 @@ class AudioProcessor(Dataset):
         self.speech_waves = glob.glob(os.path.join(self.audio_dir, "speech_wav", "*.wav"))
         self.mix_waves = glob.glob(os.path.join(self.audio_dir, "Mix_wav", "*.wav"))
         self.silence_waves = glob.glob(os.path.join(self.audio_dir, "silence_wav", "*.wav"))
-        print("Music waves:", self.music_waves)
-        print("Speech waves:", self.speech_waves)
-        print("Mix waves:", self.mix_waves)
-        print("Silence waves:", self.silence_waves)
+        # print("Music waves:", self.music_waves)
+        # print("Speech waves:", self.speech_waves)
+        # print("Mix waves:", self.mix_waves)
+        # print("Silence waves:", self.silence_waves)
 
     def get_device(self):
         if torch.cuda.is_available():
@@ -79,21 +63,14 @@ class AudioProcessor(Dataset):
 
     def preprocess(self, filepath, target_length= target_length, sample_rate=SAMPLE_RATE):
         waveform, _ = torchaudio.load(filepath)
-        # waveform_length = waveform.size(1)
-        #
-        # if waveform_length < target_length:
-        #     num_padding = target_length - waveform_length
-        #     padding = torch.zeros(1, num_padding)
-        #     waveform = torch.cat((waveform, padding), 1)
-        # elif waveform_length > target_length:
-        #     waveform = waveform[:, :target_length]
-
         waveform = self._resample_if_necessary(waveform, sample_rate) # resample if necessary
         waveform = self._mix_down_if_necessary(waveform) # convert stereo to mono
         waveform = self._right_pad_if_necessary(waveform) # pad if necessary
         waveform = self._cut_if_necessary(waveform) # cut if necessary
 
         mfcc = torchaudio.transforms.MFCC(sample_rate=sample_rate, n_mfcc=self.n_mfcc)(waveform)
+        # print mfcc shape
+        print("mfcc shape is:" ,mfcc.shape)
         return mfcc
 
     def load_audio_files_and_labels(self):
@@ -111,17 +88,20 @@ class AudioProcessor(Dataset):
     def __getitem__(self, idx):
         file_path, label = self.audio_files_and_labels[idx]
         waveform = self.preprocess(file_path)
+        print("waveform shape is:", waveform.shape)
         return waveform, label
 
     def _cut_if_necessary(self, signal):
-        if signal.shape[1] > self.num_samples:
-            signal = signal[:, :self.num_samples]
+        target_length = self.num_samples * 112 // 111
+        if signal.shape[1] > target_length:
+            signal = signal[:, :target_length]
         return signal
 
     def _right_pad_if_necessary(self, signal):
         length_signal = signal.shape[1]
-        if length_signal < self.num_samples:
-            num_missing_samples = self.num_samples - length_signal
+        target_length = self.num_samples * 112 // 111
+        if length_signal < target_length:
+            num_missing_samples = target_length - length_signal
             last_dim_padding = (0, num_missing_samples)
             signal = torch.nn.functional.pad(signal, last_dim_padding)
         return signal
