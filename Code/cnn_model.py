@@ -113,7 +113,7 @@ class Attention_block(nn.Module):
 
 
 class CNNModel(nn.Module):
-    def __init__(self, mfcc_dim=20, output_ch=4):
+    def __init__(self, mfcc_dim=32, output_ch=4):
         super(CNNModel, self).__init__()
 
         self.Maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
@@ -141,6 +141,8 @@ class CNNModel(nn.Module):
         self.Up_conv2 = conv_block(ch_in=128, ch_out=64)
 
         self.Conv_1x1 = nn.Conv2d(64, output_ch, kernel_size=1, stride=1, padding=0)
+        self.fc = nn.Linear(32 * 112 * output_ch, output_ch)  # fully connected layer
+        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
         # encoding path
@@ -180,6 +182,9 @@ class CNNModel(nn.Module):
         d2 = self.Up_conv2(d2)
 
         d1 = self.Conv_1x1(d2)
+        d1 = d1.view(d1.size(0), -1)  # flatten the tensor
+        d1 = self.fc(d1)
+        d1 = self.softmax(d1)  # apply softmax to get probabilities
 
         return d1
 
@@ -187,19 +192,20 @@ class CNNModel(nn.Module):
 
 
 
+
 def test_unet():
-    # Create a mini-batch of 8 MFCCs with dimensions (1, 20, 111)
     batch_size = 8
     dummy_mfccs = torch.rand(batch_size, 1, 32, 112)
 
     # Initialize the Attention U-Net model with 1 input channel and 4 output classes
-    model = CNNModel(mfcc_dim=20, output_ch=4)
+    model = CNNModel(mfcc_dim=32, output_ch=4)
 
     # Forward pass the dummy data through the model
     output = model(dummy_mfccs)
 
     # Check the output size
-    assert output.size() == (batch_size, 4, 32, 112), "The output size is incorrect"
+    assert output.size() == (batch_size, 4), "The output size is incorrect"
+
 
     # Check if model parameters are trainable
     assert all(param.requires_grad for param in model.parameters()), "Some model parameters are not trainable."

@@ -70,7 +70,7 @@ class AudioProcessor(Dataset):
 
         mfcc = torchaudio.transforms.MFCC(sample_rate=sample_rate, n_mfcc=self.n_mfcc)(waveform)
         # print mfcc shape
-        print("mfcc shape is:" ,mfcc.shape)
+        # print("mfcc shape is:" ,mfcc.shape)
         return mfcc
 
     def load_audio_files_and_labels(self):
@@ -88,7 +88,7 @@ class AudioProcessor(Dataset):
     def __getitem__(self, idx):
         file_path, label = self.audio_files_and_labels[idx]
         waveform = self.preprocess(file_path)
-        print("waveform shape is:", waveform.shape)
+        # print("waveform shape is:", waveform.shape)
         return waveform, label
 
     def _cut_if_necessary(self, signal):
