@@ -27,6 +27,9 @@ import os
 
 
 
+def tensor_generator(mfccs_list):
+    for mfcc in mfccs_list:
+        yield mfcc
 
 
 class AudioProcessor(Dataset):
@@ -37,7 +40,6 @@ class AudioProcessor(Dataset):
         self.music_waves = []
         self.speech_waves = []
         self.mix_waves = []
-        self.silence_waves = []
         self.load_audio_files()
         self.target_sample_rate = target_sample_rate
         self.num_samples = num_samples
@@ -47,11 +49,9 @@ class AudioProcessor(Dataset):
         self.music_waves = glob.glob(os.path.join(self.audio_dir, "music_wav", "*.wav"))
         self.speech_waves = glob.glob(os.path.join(self.audio_dir, "speech_wav", "*.wav"))
         self.mix_waves = glob.glob(os.path.join(self.audio_dir, "Mix_wav", "*.wav"))
-        self.silence_waves = glob.glob(os.path.join(self.audio_dir, "silence_wav", "*.wav"))
         # print("Music waves:", self.music_waves)
         # print("Speech waves:", self.speech_waves)
         # print("Mix waves:", self.mix_waves)
-        # print("Silence waves:", self.silence_waves)
 
     def get_device(self):
         if torch.cuda.is_available():
@@ -61,20 +61,21 @@ class AudioProcessor(Dataset):
         else:
             return "cpu"
 
-    def preprocess(self, filepath, target_length= target_length, sample_rate=SAMPLE_RATE):
+    def preprocess(self, filepath, target_length=target_length, sample_rate=SAMPLE_RATE):
         waveform, _ = torchaudio.load(filepath)
-        waveform = self._resample_if_necessary(waveform, sample_rate) # resample if necessary
-        waveform = self._mix_down_if_necessary(waveform) # convert stereo to mono
-        waveform = self._right_pad_if_necessary(waveform) # pad if necessary
-        waveform = self._cut_if_necessary(waveform) # cut if necessary
+        waveform = self._resample_if_necessary(waveform, sample_rate)  # resample if necessary
+        waveform = self._mix_down_if_necessary(waveform)  # convert stereo to mono
+        waveform = self._right_pad_if_necessary(waveform)  # pad if necessary
+        waveforms = self._cut_if_necessary(waveform)  # cut if necessary
 
-        mfcc = torchaudio.transforms.MFCC(sample_rate=sample_rate, n_mfcc=self.n_mfcc)(waveform)
-        # print mfcc shape
-        # print("mfcc shape is:" ,mfcc.shape)
-        return mfcc
+        mfccs = []
+        for wf in waveforms:
+            mfcc = torchaudio.transforms.MFCC(sample_rate=sample_rate, n_mfcc=self.n_mfcc)(wf)
+            mfccs.append(mfcc)
+        return mfccs
 
     def load_audio_files_and_labels(self):
-        categories = ['music_wav', 'speech_wav', 'Mix_wav', 'silence_wav'] # music_wav = 0, speech_wav = 1, Mix_wav = 2, silence_wav = 3
+        categories = ['music_wav', 'speech_wav', 'Mix_wav'] # music_wav = 0, speech_wav = 1, Mix_wav = 2, silence_wav = 3
         files_and_labels = []
         for i, category in enumerate(categories):
             files_in_category = glob.glob(os.path.join(self.audio_dir, category, "*.wav"))
@@ -87,15 +88,39 @@ class AudioProcessor(Dataset):
 
     def __getitem__(self, idx):
         file_path, label = self.audio_files_and_labels[idx]
-        waveform = self.preprocess(file_path)
-        # print("waveform shape is:", waveform.shape)
-        return waveform, label
+        waveform, _ = torchaudio.load(file_path)
+        waveforms = self._cut_if_necessary(waveform)
+
+        # Extract MFCC for each chunk
+        mfccs_and_labels = []
+        for wf in waveforms:
+            mfcc = torchaudio.transforms.MFCC(sample_rate=self.target_sample_rate,
+                                              n_mfcc=self.n_mfcc,
+                                              n_mels= 64)(wf)
+            mfccs_and_labels.append((mfcc, label))
+
+        return mfccs_and_labels
 
     def _cut_if_necessary(self, signal):
         target_length = self.num_samples * 112 // 111
+        split_signals = []
         if signal.shape[1] > target_length:
-            signal = signal[:, :target_length]
-        return signal
+            # Split long signals into multiple segments of size target_length
+            for i in range(0, signal.shape[1], target_length):
+                end = i + target_length
+                if end < signal.shape[1]:
+                    split_signals.append(signal[:, i:end])
+                else:  # If the signal is shorter than target_length, pad it
+                    num_missing_samples = target_length - (signal.shape[1] - i)
+                    last_dim_padding = (0, num_missing_samples)
+                    split_signal = torch.nn.functional.pad(signal[:, i:end], last_dim_padding)
+                    split_signals.append(split_signal)
+            return split_signals
+        else:  # If the signal is shorter than target_length, pad it
+            num_missing_samples = target_length - signal.shape[1]
+            last_dim_padding = (0, num_missing_samples)
+            signal = torch.nn.functional.pad(signal, last_dim_padding)
+            return [signal]
 
     def _right_pad_if_necessary(self, signal):
         length_signal = signal.shape[1]
@@ -122,7 +147,6 @@ class AudioProcessor(Dataset):
         music_sample = random.choice(self.music_waves)
         speech_sample = random.choice(self.speech_waves)
         mix_sample = random.choice(self.mix_waves)
-        silence_sample = random.choice(self.silence_waves)
 
         print("Music sample:")
         ipd.display(ipd.Audio(music_sample))
@@ -132,8 +156,7 @@ class AudioProcessor(Dataset):
 
         print("Mix sample:")
         ipd.display(ipd.Audio(mix_sample))
-        print("Silence sample:")
-        ipd.display(ipd.Audio(silence_sample))
+
 
     def librosa_spectrogram(self, filepath):
         y, sr = librosa.load(filepath)
@@ -154,9 +177,9 @@ class AudioProcessor(Dataset):
 
 
     def plot_audio_spectrograms(self):
-        audio_titles = ["Music", "Speech", "Mix", "Silence"]
+        audio_titles = ["Music", "Speech", "Mix"]
         audio_files = [random.choice(self.music_waves), random.choice(self.speech_waves),
-                       random.choice(self.mix_waves), random.choice(self.silence_waves)]
+                       random.choice(self.mix_waves)]
         audio_mfccs_values = [self.preprocess(file) for file in audio_files]
 
         fig, axs = plt.subplots(4, 2, figsize=(12, 16))
@@ -179,7 +202,7 @@ class AudioProcessor(Dataset):
 if __name__ == '__main__':
     AUDIO_DIR = "/Users/zainhazzouri/projects/Bachelor_Thesis/Data/train"
     audio_processor = AudioProcessor(AUDIO_DIR)
-    audio_processor.process_and_visualize()
+
 
 
 # In[ ]:
