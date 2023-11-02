@@ -143,6 +143,7 @@ class CNNModel(nn.Module):
         self.Conv_1x1 = nn.Conv2d(64, output_ch, kernel_size=1, stride=1, padding=0)
         self.fc = nn.Linear(32 * 112 * output_ch, output_ch)  # fully connected layer
         self.softmax = nn.Softmax(dim=1)
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((None, 112))
 
     def forward(self, x):
         # encoding path
