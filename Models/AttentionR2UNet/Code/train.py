@@ -9,15 +9,18 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import precision_recall_fscore_support, matthews_corrcoef,confusion_matrix
 import torchaudio
 import numpy as np
+import pandas as pd
+
 
 
 
 from cnn_model import R2AttU_Net
+
 from datapreprocessing import AudioProcessor
 #%%
 # Training parameters
 batch_size = 8
-learning_rate = 1e-4 # 1e-4= 0.0001
+learning_rate = 1e-3 # 1e-4= 0.0001
 num_epochs = 200
 patience = 10 # for early stopping
 save_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/results/AttentionR2UNet/MFCCs"
@@ -46,6 +49,7 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 
 # Initialize model, loss, and optimizer
+model_name = "R2AttU_Net"
 model = R2AttU_Net().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -143,6 +147,7 @@ val_recalls = []
 val_f1_scores = []
 val_mccs = []
 val_sdrs = []
+best_epoch = 0
 
 best_val_Accuracy = float('-inf') 
 no_improv_counter = 0
@@ -227,6 +232,7 @@ for epoch in range(num_epochs):
     if val_accuracy > best_val_Accuracy:
         best_val_Accuracy = val_accuracy
         no_improv_counter = 0
+        best_epoch = epoch 
         # Save the best model using save_path variable
         torch.save(model.state_dict(), f"{save_path}/best_model.pth")
 
@@ -239,67 +245,97 @@ for epoch in range(num_epochs):
         break
 
 print("Training finished.")
+
+#%%
+def to_numpy(x):
+    if isinstance(x, torch.Tensor): # if x is a torch tensor
+        return x.cpu().numpy()
+    else:
+        return x
+
+# Create a DataFrame from your metrics
+metrics_df = pd.DataFrame({
+    'val_losses': [to_numpy(x) for x in val_losses],
+    'val_accuracies': [to_numpy(x) for x in val_accuracies],
+    'val_precisions': [to_numpy(x) for x in val_precisions],
+    'val_recalls': [to_numpy(x) for x in val_recalls],
+    'val_f1_scores': [to_numpy(x) for x in val_f1_scores],
+    'val_mccs': [to_numpy(x) for x in val_mccs],
+    'val_sdrs': [to_numpy(x) for x in val_sdrs],
+    'best_epoch': to_numpy(best_epoch)
+})
+# Save the DataFrame to a CSV file
+metrics_df.to_csv(f"{save_path}/{model_name}_metrics.csv", index=False)
+
 # After training, load the best model for further use
 model.load_state_dict(torch.load(f'{save_path}/best_model.pth'))
 
 #%%
 # Plotting
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+fig, ax = plt.subplots()
 
 # Loss
-ax1.plot(train_losses, label='Train')
-ax1.plot(val_losses, label='Validation')
-ax1.set_title('Loss')
-ax1.set_xlabel('Epoch')
-ax1.set_ylabel('Loss')
-ax1.legend()
+ax.plot(train_losses, label='Train')
+ax.plot(val_losses, label='Validation')
+ax.set_title(f'{model_name} Loss')
+ax.set_xlabel('Epoch')
+ax.set_ylabel('Loss')
+ax.legend()
+fig.savefig(f"{save_path}/{model_name}_loss.png")
 
 # Accuracy
-ax2.plot(train_accuracies, label='Train')
-ax2.plot(val_accuracies, label='Validation')
-ax2.set_title('Accuracy')
-ax2.set_xlabel('Epoch')
-ax2.set_ylabel('Accuracy (%)')
-ax2.legend()
-fig.savefig(f"{save_path}/loss_accuracy.png")
+fig, ax = plt.subplots()
+
+ax.plot(train_accuracies, label='Train')
+ax.plot(val_accuracies, label='Validation')
+ax.set_title(f'{model_name} Accuracy')
+ax.set_xlabel('Epoch')
+ax.set_ylabel('Accuracy (%)')
+ax.legend()
+fig.savefig(f"{save_path}/{model_name}_accuracy.png")
 # plt.show()
 
 
 #%%
 
-fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(12, 16))
 
 # Precision
-ax1.plot(val_precisions, label='Validation')
-ax1.set_title('Precision')
-ax1.set_xlabel('Epoch')
-ax1.set_ylabel('Precision')
-ax1.legend()
+fig, ax = plt.subplots()
+ax.plot(val_precisions, label='Validation')
+ax.set_title(f'{model_name} Precision')
+ax.set_xlabel('Epoch')
+ax.set_ylabel('Precision')
+ax.legend()
+fig.savefig(f"{save_path}/{model_name}_precision.png")
 
 # Recall
-ax2.plot(val_recalls, label='Validation')
-ax2.set_title('Recall')
-ax2.set_xlabel('Epoch')
-ax2.set_ylabel('Recall')
-ax2.legend()
+fig, ax = plt.subplots()
+ax.plot(val_recalls, label='Validation')
+ax.set_title(f'{model_name}_Recall')
+ax.set_xlabel('Epoch')
+ax.set_ylabel('Recall')
+ax.legend()
+fig.savefig(f"{save_path}/{model_name}_recall.png")
 
 # F1-score
-ax3.plot(val_f1_scores, label='Validation')
-ax3.set_title('F1-Score')
-ax3.set_xlabel('Epoch')
-ax3.set_ylabel('F1-Score')
-ax3.legend()
+fig, ax = plt.subplots()
+ax.plot(val_f1_scores, label='Validation')
+ax.set_title(f'{model_name} F1-Score')
+ax.set_xlabel('Epoch')
+ax.set_ylabel('F1-Score')
+ax.legend()
+fig.savefig(f"{save_path}/{model_name}_f1_score.png")
 
 # MCC
-ax4.plot(val_mccs, label='Validation')
-ax4.set_title('MCC')
-ax4.set_xlabel('Epoch')
-ax4.set_ylabel('MCC')
-ax4.legend()
-fig.savefig(f'{save_path}/precision_recall_f1_mcc.png')
+fig, ax = plt.subplots()
+ax.plot(val_mccs, label='Validation')
+ax.set_title(f'{model_name}_MCC')
+ax.set_xlabel('Epoch')
+ax.set_ylabel('MCC')
+ax.legend()
+fig.savefig(f"{save_path}/{model_name}_mcc.png")
 
-plt.tight_layout()
-# plt.show()
+
 
 
 #%%
@@ -314,11 +350,11 @@ fig, ax = plt.subplots(figsize=(6, 4))
 
 # SDR
 ax.plot(val_sdrs_np, label='Validation')
-ax.set_title('Signal-to-Distortion Ratio (SDR)')
+ax.set_title(f'{model_name} Signal-to-Distortion Ratio (SDR)')
 ax.set_xlabel('Epoch')
 ax.set_ylabel('SDR')
 ax.legend()
-fig.savefig(f'{save_path}/sdr.png')
+fig.savefig(f"{save_path}/{model_name}_sdr.png")
 
 # plt.show()
 
@@ -374,22 +410,12 @@ with torch.no_grad():
 
 # Plot confusion matrix
 plot_confusion_matrix(y_true, y_pred, labels=[0, 1], title="Confusion Matrix")
-fig.savefig(f'{save_path}/confusion_matrix.png')
+fig.savefig(f'{save_path}/{model_name}_confusion_matrix.png')
 
 
 # Extract weights and gradients and plot histograms
 weights, gradients = get_weights_gradients(model)
 plot_histograms(weights, gradients)
-fig.savefig(f'{save_path}/weights_gradients.png')
-
-
-
-#%%
-# Save the trained model
-# torch.save(model.state_dict(), f'{save_path}/CNNModel_speech_music_discrimination.pth')
-
-
-
-print("Model saved.")
+fig.savefig(f'{save_path}/{model_name}_weights_gradients.png')
 
 # %%
