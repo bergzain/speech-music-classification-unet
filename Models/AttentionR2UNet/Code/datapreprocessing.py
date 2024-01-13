@@ -1,6 +1,6 @@
 
 
-
+#%%
 import glob
 import random
 import torch
@@ -14,7 +14,7 @@ from torch.utils.data import Dataset
 import os
 
 
-
+#%%
 length_in_seconds = 5 # duration in seconds
 n_mfcc = 32 # number of MFCCs features
 sample_rate = 44100 # check data_parsing_and_preprocessing.ipynb
@@ -22,7 +22,7 @@ target_sample_rate = 44100  # Define your target sample rate
 samples_for_ten_seconds = length_in_seconds * sample_rate
 target_length = samples_for_ten_seconds  # Assuming this is the length of the audio you want to process
 
-
+#%%
 class AudioProcessor(Dataset):
     def __init__(self, audio_dir, n_mfcc=n_mfcc,num_samples=samples_for_ten_seconds):
         self.audio_dir = audio_dir
@@ -143,9 +143,34 @@ class AudioProcessor(Dataset):
             signal = torch.mean(signal, dim=0, keepdim=True)
             # print(f"signal.shape after downmixing: {signal.shape}")
         return signal
+    
+    def plot_mfccs(self, file_path, title):
+        # mfccs = self.preprocess(file_path)  # preprocess the file to get the MFCCs
+        # mfcc = mfccs[0]  # Take the first chunk of MFCCs for plotting
+        
+        audio, sr = librosa.load(file_path)
+        S = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=self.n_mfcc)
+        log_S = librosa.power_to_db(S, ref=np.max)
 
 
+        # Plotting the MFCCs
+        plt.figure(figsize=(10, 4))
+        librosa.display.specshow(log_S, sr=sr, x_axis='time')
+        plt.colorbar(format='%+2.0f dB')
+        plt.title(f'MFCC of {title}')
+        plt.tight_layout()
+        plt.show()
+        
+  
+
+
+# #%%
 # path_to_test = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/"
-# #
-# val_dataset = AudioProcessor(audio_dir=path_to_test)
-# print(val_dataset[0][0].shape)
+# music_waves = glob.glob(os.path.join(path_to_test, "music_wav", "*.wav"))
+# speech_waves = glob.glob(os.path.join(path_to_test, "speech_wav", "*.wav"))
+
+# #%%
+# audio_processor = AudioProcessor(audio_dir=path_to_test)
+# audio_processor.plot_mfccs(music_waves[5], "Music Sample")
+# audio_processor.plot_mfccs(speech_waves[5], "Speech Sample")
+# # %%

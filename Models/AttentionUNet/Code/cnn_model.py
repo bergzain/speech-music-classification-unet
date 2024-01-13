@@ -159,6 +159,9 @@ def test_unet():
 
     # Initialize the Attention U-Net model with 1 input channel and 4 output classes
     model = AttentionUNet(mfcc_dim=32, output_ch=2)
+    total_params = sum(p.numel() for p in model.parameters())
+    print("Total number of parameters in the model = ", total_params)
+
 
     # Forward pass the dummy data through the model
     output = model(dummy_mfccs)
