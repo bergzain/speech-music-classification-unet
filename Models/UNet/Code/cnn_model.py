@@ -15,11 +15,11 @@ class conv_block(nn.Module):
 
     def forward(self, x):
         x = self.conv1(x)
-        print("After conv1:", x.shape)
+        #print("After conv1:", x.shape)
         x = self.bn1(x)
         x = self.relu1(x)
         x = self.conv2(x)
-        print("After conv2:", x.shape)
+        #print("After conv2:", x.shape)
         x = self.bn2(x)
         x = self.relu2(x)
         return x
@@ -180,77 +180,77 @@ class U_Net(nn.Module):
         self.adaptive_pool = nn.AdaptiveAvgPool2d((None, 112))
     def forward(self, x):
         # encoding path
-        #print dimensions of input
-        print("input shape:",x.shape)
+        ##print dimensions of input
+        #print("input shape:",x.shape)
         x1 = self.Conv1(x)
-        #print dimensions 
-        print("x1 shape:", x1.shape)
+        ##print dimensions 
+        #print("x1 shape:", x1.shape)
 
 
         x2 = self.Maxpool(x1)
-        print("x2 Maxpool shape:", x2.shape)
+        #print("x2 Maxpool shape:", x2.shape)
         x2 = self.Conv2(x2)
-        print("x2 Conv2 shape:", x2.shape)
+        #print("x2 Conv2 shape:", x2.shape)
 
         x3 = self.Maxpool(x2)
-        print("x3 Maxpool shape:", x3.shape)
+        #print("x3 Maxpool shape:", x3.shape)
         x3 = self.Conv3(x3)
-        print("x3 Conv3 shape:", x3.shape)
+        #print("x3 Conv3 shape:", x3.shape)
 
         x4 = self.Maxpool(x3)
-        print("x4 Maxpool shape:", x4.shape)
+        #print("x4 Maxpool shape:", x4.shape)
         x4 = self.Conv4(x4)
-        print("x4 Conv4 shape:", x4.shape)
+        #print("x4 Conv4 shape:", x4.shape)
 
         x5 = self.Maxpool(x4)
-        print("x5 Maxpool shape:", x5.shape)
+        #print("x5 Maxpool shape:", x5.shape)
         x5 = self.Conv5(x5)
-        print("x5 Conv5 shape:", x5.shape)
+        #print("x5 Conv5 shape:", x5.shape)
 
         # decoding + concat path
         d5 = self.Up5(x5)
-        print("d5 Up5 shape:", d5.shape)
+        #print("d5 Up5 shape:", d5.shape)
         d5 = torch.cat((x4, d5), dim=1)
-        print("d5 cat shape:", d5.shape)
+        #print("d5 cat shape:", d5.shape)
 
         d5 = self.Up_conv5(d5)
-        print("d5 Up_conv5 shape:", d5.shape)
+        #print("d5 Up_conv5 shape:", d5.shape)
 
         d4 = self.Up4(d5)
-        print("d4 Up4 shape:", d4.shape)
+        #print("d4 Up4 shape:", d4.shape)
         d4 = torch.cat((x3, d4), dim=1)
-        print("d4 cat shape:", d4.shape)
+        #print("d4 cat shape:", d4.shape)
         d4 = self.Up_conv4(d4)
-        print("d4 Up_conv4 shape:", d4.shape)
+        #print("d4 Up_conv4 shape:", d4.shape)
 
         d3 = self.Up3(d4)
-        print("d3 Up3 shape:", d3.shape)
+        #print("d3 Up3 shape:", d3.shape)
         d3 = torch.cat((x2, d3), dim=1)
-        print("d3 cat shape:", d3.shape)
+        #print("d3 cat shape:", d3.shape)
         d3 = self.Up_conv3(d3)
-        print("d3 Up_conv3 shape:", d3.shape)
+        #print("d3 Up_conv3 shape:", d3.shape)
 
         d2 = self.Up2(d3)
-        print("d2 Up2 shape:", d2.shape)
+        #print("d2 Up2 shape:", d2.shape)
         d2 = torch.cat((x1, d2), dim=1)
-        print("d2 cat shape:", d2.shape)
+        #print("d2 cat shape:", d2.shape)
         
         d2 = self.Up_conv2(d2)
-        print("d2 Up_conv2 shape:", d2.shape)
+        #print("d2 Up_conv2 shape:", d2.shape)
 
         d1 = self.Conv_1x1(d2)
-        print("d1 Conv_1x1 shape:", d1.shape)
+        #print("d1 Conv_1x1 shape:", d1.shape)
         # Dynamically calculate input size for the fully connected layer
         if not self.fc:
             n_size = d1.size()[1] * d1.size()[2] * d1.size()[3]
             self.fc = nn.Linear(n_size, self.output_ch).to(d1.device)
 
         d1 = d1.view(d1.size(0), -1)  # flatten the tensor
-        print("d1 view shape:", d1.shape)
+        #print("d1 view shape:", d1.shape)
         d1 = self.fc(d1)
-        print("d1 fc shape:", d1.shape)
+        #print("d1 fc shape:", d1.shape)
         d1 = self.softmax(d1)  # apply softmax to get probabilities
-        print("d1 softmax shape:", d1.shape)
+        #print("d1 softmax shape:", d1.shape)
 
         return d1
 

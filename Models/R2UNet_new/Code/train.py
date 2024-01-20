@@ -21,7 +21,7 @@ from datapreprocessing import AudioProcessor
 # Training parameters
 batch_size = 8
 learning_rate = 1e-3 # 1e-4= 0.0001
-num_epochs = 200
+num_epochs = 100
 patience = 10 # for early stopping
 save_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/results/R2UNet/MFCCs"
 
@@ -120,20 +120,22 @@ def evaluate(val_loader, model, criterion, device):
     accuracy = 100 * correct / total
 
     # Calculate precision, recall, F1-score, and MCC
-    precision, recall, f1_score, _ = precision_recall_fscore_support(all_targets, all_predictions, average='weighted')
+    precision, recall, f1_score, _ = precision_recall_fscore_support(all_targets, all_predictions, average=None)
+
     mcc = matthews_corrcoef(all_targets, all_predictions)
 
     return avg_loss, accuracy, precision, recall, f1_score, mcc, avg_sdr
 
     # Evaluate the model
     val_loss, val_accuracy, val_precision, val_recall, val_f1_score, val_mcc, avg_sdr = evaluate(val_loader, model, criterion, device)
-    print(f"Validation Loss: {val_loss:.4f}")
-    print(f"Validation Accuracy: {val_accuracy:.2f}%")
-    print(f"Validation Precision: {val_precision:.4f}")
-    print(f"Validation Recall: {val_recall:.4f}")
-    print(f"Validation F1-score: {val_f1_score:.4f}")
+    # print(f"Validation Loss: {val_loss:.4f}")
+    # print(f"Validation Accuracy: {val_accuracy:.2f}%")
+    # print(f"Validation Precision: {val_precision:.4f}")
+    # print(f"Validation Recall: {val_recall:.4f}")
+    # print(f"Validation F1-score: {val_f1_score:.4f}")
     print(f"Validation MCC: {val_mcc:.4f}")
-    print(f"Validation SDR: {avg_sdr:.4f}")
+    # print(f"Validation SDR: {avg_sdr:.4f}")
+
     
     
 #%%
@@ -211,6 +213,7 @@ for epoch in range(num_epochs):
 
     # Validate and store the validation metrics
     val_loss, val_accuracy, val_precision, val_recall, val_f1_score, val_mcc, val_sdr = evaluate(val_loader, model, criterion, device)
+
     val_losses.append(val_loss)
     val_accuracies.append(val_accuracy)
     val_precisions.append(val_precision)
@@ -221,9 +224,11 @@ for epoch in range(num_epochs):
 
     print(f"Train Loss: {epoch_loss:.4f} | Train Accuracy: {epoch_accuracy:.2f}%")
     print(f"Validation Loss: {val_loss:.4f} | Validation Accuracy: {val_accuracy:.2f}%")
-    print(f"Validation Precision: {val_precision:.4f}")
-    print(f"Validation Recall: {val_recall:.4f}")
-    print(f"Validation F1-score: {val_f1_score:.4f}")
+    # Print class-specific metrics
+    # Correctly accessing the precision, recall, and F1-score for each class
+    # print(f"Validation Precision (Music): {val_precisions[0][0]:.4f}, (Speech): {val_precisions[0][1]:.4f}")
+    # print(f"Validation Recall (Music): {val_recalls[0][0]:.4f}, (Speech): {val_recalls[0][1]:.4f}")
+    # print(f"Validation F1-score (Music): {val_f1_scores[0][0]:.4f}, (Speech): {val_f1_scores[0][1]:.4f}")
     print(f"Validation MCC: {val_mcc:.4f}")
     
     
@@ -257,15 +262,18 @@ def to_numpy(x):
 metrics_df = pd.DataFrame({
     'val_losses': [to_numpy(x) for x in val_losses],
     'val_accuracies': [to_numpy(x) for x in val_accuracies],
-    'val_precisions': [to_numpy(x) for x in val_precisions],
-    'val_recalls': [to_numpy(x) for x in val_recalls],
-    'val_f1_scores': [to_numpy(x) for x in val_f1_scores],
+    'music_val_precisions': [to_numpy(x[0]) for x in val_precisions],
+    'speech_val_precisions': [to_numpy(x[1]) for x in val_precisions],
+    'music_val_recalls': [to_numpy(x[0]) for x in val_recalls],
+    'speech_val_recalls': [to_numpy(x[1]) for x in val_recalls],
+    'music_val_f1_scores': [to_numpy(x[0]) for x in val_f1_scores],
+    'speech_val_f1_scores': [to_numpy(x[1]) for x in val_f1_scores],
     'val_mccs': [to_numpy(x) for x in val_mccs],
     'val_sdrs': [to_numpy(x) for x in val_sdrs],
     'best_epoch': to_numpy(best_epoch)
 })
 # Save the DataFrame to a CSV file
-metrics_df.to_csv(f"{save_path}/{model_name}_metrics.csv", index=False)
+metrics_df.to_csv(f"{save_path}/{model_name}metrics.csv", index=False)
 
 # After training, load the best model for further use
 model.load_state_dict(torch.load(f'{save_path}/best_model.pth'))
@@ -298,33 +306,44 @@ fig.savefig(f"{save_path}/{model_name}_accuracy.png")
 
 #%%
 
-
-# Precision
+# Extract class-specific metrics
+music_precisions = [x[0] for x in val_precisions]
+speech_precisions = [x[1] for x in val_precisions]
+music_recalls = [x[0] for x in val_recalls]
+speech_recalls = [x[1] for x in val_recalls]
+music_f1_scores = [x[0] for x in val_f1_scores]
+speech_f1_scores = [x[1] for x in val_f1_scores]
+#%%
+# Plotting Precision for each class
 fig, ax = plt.subplots()
-ax.plot(val_precisions, label='Validation')
-ax.set_title(f'{model_name} Precision')
+ax.plot(music_precisions, label='Music Precision')
+ax.plot(speech_precisions, label='Speech Precision')
+ax.set_title(f'{model_name} Precision by Class')
 ax.set_xlabel('Epoch')
 ax.set_ylabel('Precision')
 ax.legend()
-fig.savefig(f"{save_path}/{model_name}_precision.png")
+fig.savefig(f"{save_path}/{model_name}_precision_by_class.png")
 
-# Recall
+# Plotting Recall for each class
 fig, ax = plt.subplots()
-ax.plot(val_recalls, label='Validation')
-ax.set_title(f'{model_name}_Recall')
+ax.plot(music_recalls, label='Music Recall')
+ax.plot(speech_recalls, label='Speech Recall')
+ax.set_title(f'{model_name} Recall by Class')
 ax.set_xlabel('Epoch')
 ax.set_ylabel('Recall')
 ax.legend()
-fig.savefig(f"{save_path}/{model_name}_recall.png")
+fig.savefig(f"{save_path}/{model_name}_recall_by_class.png")
 
-# F1-score
+# Plotting F1-Score for each class
 fig, ax = plt.subplots()
-ax.plot(val_f1_scores, label='Validation')
-ax.set_title(f'{model_name} F1-Score')
+ax.plot(music_f1_scores, label='Music F1-Score')
+ax.plot(speech_f1_scores, label='Speech F1-Score')
+ax.set_title(f'{model_name} F1-Score by Class')
 ax.set_xlabel('Epoch')
 ax.set_ylabel('F1-Score')
 ax.legend()
-fig.savefig(f"{save_path}/{model_name}_f1_score.png")
+fig.savefig(f"{save_path}/{model_name}_f1_score_by_class.png")
+
 
 # MCC
 fig, ax = plt.subplots()
@@ -358,64 +377,66 @@ fig.savefig(f"{save_path}/{model_name}_sdr.png")
 
 # plt.show()
 
-#%%
-def plot_confusion_matrix(y_true, y_pred, labels, ax=None, title=None):
-    cm = confusion_matrix(y_true, y_pred, labels=labels)
-    if ax is None:
-        _, ax = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt="d", cmap="YlGnBu", ax=ax, xticklabels=labels, yticklabels=labels)
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("True")
-    if title:
-        ax.set_title(title)
+# #%%
+# def plot_confusion_matrix(y_true, y_pred, labels, ax=None, title=None):
+#     cm = confusion_matrix(y_true, y_pred, labels=labels)
+#     if ax is None:
+#         _, ax = plt.subplots()
+#     sns.heatmap(cm, annot=True, fmt="d", cmap="YlGnBu", ax=ax, xticklabels=labels, yticklabels=labels)
+#     ax.set_xlabel("Predicted")
+#     ax.set_ylabel("True")
+#     if title:
+#         ax.set_title(title)
 
-def get_weights_gradients(model):
-    weights = []
-    gradients = []
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            weights.append(param.data.cpu().numpy())
-            gradients.append(param.grad.data.cpu().numpy())
-    return weights, gradients
+# def get_weights_gradients(model):
+#     weights = []
+#     gradients = []
+#     for name, param in model.named_parameters():
+#         if param.requires_grad:
+#             weights.append(param.data.cpu().numpy())
+#             gradients.append(param.grad.data.cpu().numpy())
+#     return weights, gradients
 
-def plot_histograms(weights, gradients, figsize=(10, 4)):
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+# def plot_histograms(weights, gradients, figsize=(10, 4)):
+#     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
 
-    for w in weights:
-        ax1.hist(w.flatten(), bins=100, alpha=0.5)
-    ax1.set_title("Weights Histogram")
-    ax1.set_xlabel("Value")
-    ax1.set_ylabel("Frequency")
+#     for w in weights:
+#         ax1.hist(w.flatten(), bins=100, alpha=0.5)
+#     ax1.set_title("Weights Histogram")
+#     ax1.set_xlabel("Value")
+#     ax1.set_ylabel("Frequency")
 
-    for g in gradients:
-        ax2.hist(g.flatten(), bins=100, alpha=0.5)
-    ax2.set_title("Gradients Histogram")
-    ax2.set_xlabel("Value")
-    ax2.set_ylabel("Frequency")
+#     for g in gradients:
+#         ax2.hist(g.flatten(), bins=100, alpha=0.5)
+#     ax2.set_title("Gradients Histogram")
+#     ax2.set_xlabel("Value")
+#     ax2.set_ylabel("Frequency")
 
-    plt.show()
+#     plt.show()
 
-# Get true labels and predictions on the validation set
-y_true = []
-y_pred = []
-model.eval()
-with torch.no_grad():
-    for inputs, targets in val_loader:
-        inputs = inputs.to(device)
-        targets = targets.to(device)
-        outputs = model(inputs)
-        _, predicted = torch.max(outputs.data, 1)
-        y_true.extend(targets.cpu().numpy())
-        y_pred.extend(predicted.cpu().numpy())
+# # Get true labels and predictions on the validation set
+# y_true = []
+# y_pred = []
+# model.eval()
+# with torch.no_grad():
+#     for inputs, targets in val_loader:
+#         inputs = inputs.to(device)
+#         targets = targets.to(device)
+#         outputs = model(inputs)
+#         _, predicted = torch.max(outputs.data, 1)
+#         y_true.extend(targets.cpu().numpy())
+#         y_pred.extend(predicted.cpu().numpy())
 
-# Plot confusion matrix
-plot_confusion_matrix(y_true, y_pred, labels=[0, 1], title="Confusion Matrix")
-fig.savefig(f'{save_path}/{model_name}_confusion_matrix.png')
+# # Plot confusion matrix
+# plot_confusion_matrix(y_true, y_pred, labels=[0, 1], title="Confusion Matrix")
+# fig.savefig(f'{save_path}/{model_name}_confusion_matrix.png')
 
 
-# Extract weights and gradients and plot histograms
-weights, gradients = get_weights_gradients(model)
-plot_histograms(weights, gradients)
-fig.savefig(f'{save_path}/{model_name}_weights_gradients.png')
+# # Extract weights and gradients and plot histograms
+# weights, gradients = get_weights_gradients(model)
+# plot_histograms(weights, gradients)
+# fig.savefig(f'{save_path}/{model_name}_weights_gradients.png')
+
+# # %%
 
 # %%
