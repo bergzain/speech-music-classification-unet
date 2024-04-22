@@ -4,7 +4,7 @@ entry_point_name: ''
 experiment_id: '439015367249026603'
 lifecycle_stage: active
 run_id: 17da9fa28f0642c9bf14e6a1a27e89d1
-run_name: masked-goose-853
+run_name: R2UNet_MFCCs1
 run_uuid: 17da9fa28f0642c9bf14e6a1a27e89d1
 source_name: ''
 source_type: 4

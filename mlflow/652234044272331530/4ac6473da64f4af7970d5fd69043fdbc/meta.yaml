@@ -1,0 +1,15 @@
+artifact_uri: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/652234044272331530/4ac6473da64f4af7970d5fd69043fdbc/artifacts
+end_time: 1713663068796
+entry_point_name: ''
+experiment_id: '652234044272331530'
+lifecycle_stage: active
+run_id: 4ac6473da64f4af7970d5fd69043fdbc
+run_name: R2UNet_Delta_Delta1
+run_uuid: 4ac6473da64f4af7970d5fd69043fdbc
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1713655111568
+status: 3
+tags: []
+user_id: zainhazzouri

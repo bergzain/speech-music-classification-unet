@@ -4,7 +4,7 @@ entry_point_name: ''
 experiment_id: '104247588398260324'
 lifecycle_stage: active
 run_id: 03e3ee506b5c4869b09f13db617fd4fd
-run_name: receptive-kit-743
+run_name: AttentionUNet_MFCCs
 run_uuid: 03e3ee506b5c4869b09f13db617fd4fd
 source_name: ''
 source_type: 4

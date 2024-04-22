@@ -4,7 +4,7 @@ entry_point_name: ''
 experiment_id: '384957676145578600'
 lifecycle_stage: active
 run_id: 026fab4e03c542579e73180d78a78537
-run_name: '1'
+run_name: AttentionUNet_Delta
 run_uuid: 026fab4e03c542579e73180d78a78537
 source_name: ''
 source_type: 4

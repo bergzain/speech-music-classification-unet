@@ -4,7 +4,7 @@ entry_point_name: ''
 experiment_id: '450552195002809623'
 lifecycle_stage: active
 run_id: b07a680f3c444938ae2e5d01b2f7dcab
-run_name: defiant-loon-889
+run_name: AttentionR2UNet_MFCCs
 run_uuid: b07a680f3c444938ae2e5d01b2f7dcab
 source_name: ''
 source_type: 4

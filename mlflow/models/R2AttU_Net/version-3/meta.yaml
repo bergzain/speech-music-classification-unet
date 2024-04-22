@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1713670998681
+current_stage: None
+description: null
+last_updated_timestamp: 1713670998681
+name: R2AttU_Net
+run_id: 333d5a49cc1945e3b6dadb5c780e6082
+run_link: null
+source: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/176243105470505728/333d5a49cc1945e3b6dadb5c780e6082/artifacts/model
+status: READY
+status_message: null
+storage_location: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/176243105470505728/333d5a49cc1945e3b6dadb5c780e6082/artifacts/model
+user_id: null
+version: 3

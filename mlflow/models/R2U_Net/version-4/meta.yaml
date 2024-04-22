@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1713663068110
+current_stage: None
+description: null
+last_updated_timestamp: 1713663068110
+name: R2U_Net
+run_id: 4ac6473da64f4af7970d5fd69043fdbc
+run_link: null
+source: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/652234044272331530/4ac6473da64f4af7970d5fd69043fdbc/artifacts/model
+status: READY
+status_message: null
+storage_location: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/652234044272331530/4ac6473da64f4af7970d5fd69043fdbc/artifacts/model
+user_id: null
+version: 4
