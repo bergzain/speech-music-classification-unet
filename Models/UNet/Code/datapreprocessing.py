@@ -33,7 +33,13 @@ class AudioProcessor(Dataset):
         self.load_audio_files()
         self.target_sample_rate = target_sample_rate
         self.num_samples = num_samples
+        self.speech_count = 0
+        self.music_count = 0
+        self.speech_chunk_count = 0
+        self.music_chunk_count = 0
         self.audio_files_and_labels = self.load_audio_files_and_labels()
+
+
 
     def load_audio_files(self):
         self.music_waves = glob.glob(os.path.join(self.audio_dir, "music_wav", "*.wav"))
@@ -83,6 +89,10 @@ class AudioProcessor(Dataset):
             files_in_category = glob.glob(os.path.join(self.audio_dir, category, "*.wav"))
             for file_path in files_in_category:
                 files_and_labels.append((file_path, i))
+                if category == 'music_wav':
+                    self.music_count += 1
+                else:
+                    self.speech_count += 1
         return files_and_labels
 
     def __len__(self):
@@ -95,6 +105,10 @@ class AudioProcessor(Dataset):
         # return 1 mfcc from chunks of mfccs and label
         for mfcc in mfccs:
             # print(f"mfcc.shape: {mfcc.shape}")
+            if label == 0:
+                self.music_chunk_count += 1
+            else:
+                self.speech_chunk_count += 1
             return mfcc, label
 
 

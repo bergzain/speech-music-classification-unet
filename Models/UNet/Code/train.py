@@ -1,3 +1,4 @@
+#%%
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,11 +14,13 @@ import mlflow.pytorch
 
 from cnn_model import U_Net
 from datapreprocessing import AudioProcessor
-
+#%%
 # Set MLflow tracking URI and experiment name
 mlflow.set_tracking_uri("/Users/zainhazzouri/projects/Bachelor_Thesis/mlflow")
 experiment_name = "UNet_MFCCs"
 mlflow.set_experiment(experiment_name)
+run_name = experiment_name
+
 
 # Training parameters
 batch_size = 8
@@ -25,7 +28,7 @@ learning_rate = 1e-3
 num_epochs = 100
 patience = 10
 save_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/results/UNet/MFCCs"
-
+#%%
 # Set device
 if torch.cuda.is_available():
     device = "cuda"
@@ -34,20 +37,26 @@ elif torch.backends.mps.is_built():
 else:
     device = "cpu"
 print(f"Using {device}")
-
+#%%
 path_to_train = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/train/"
 path_to_test = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/"
 
 train_dataset = AudioProcessor(audio_dir=path_to_train)
 val_dataset = AudioProcessor(audio_dir=path_to_test)
-
+#%%
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-
+#%%
+print(f"Train dataset - Speech count: {train_dataset.speech_count}, Music count: {train_dataset.music_count}")
+print(f"Train dataset - Speech chunk count: {train_dataset.speech_chunk_count}, Music chunk count: {train_dataset.music_chunk_count}")
+print(f"Validation dataset - Speech count: {val_dataset.speech_count}, Music count: {val_dataset.music_count}")
+print(f"Validation dataset - Speech chunk count: {val_dataset.speech_chunk_count}, Music chunk count: {val_dataset.music_chunk_count}")
+#%%
 model_name = "U_Net"
 model = U_Net().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+#%%
 
 def calculate_sdr(target, prediction):
     target = target.float()
@@ -94,6 +103,7 @@ def evaluate(val_loader, model, criterion, device):
 
             all_targets.extend(targets.cpu().numpy())
             all_predictions.extend(predicted.cpu().numpy())
+            
 
     avg_sdr = sum(all_sdrs) / len(all_sdrs)
 
@@ -105,12 +115,23 @@ def evaluate(val_loader, model, criterion, device):
     mcc = matthews_corrcoef(all_targets, all_predictions)
 
     return avg_loss, accuracy, precision, recall, f1_score, mcc, avg_sdr
-
-with mlflow.start_run():
+#%%
+with mlflow.start_run(run_name=run_name):
     # Log hyperparameters
     mlflow.log_param("batch_size", batch_size)
     mlflow.log_param("learning_rate", learning_rate)
     mlflow.log_param("num_epochs", num_epochs)
+    mlflow.log_param("patience", patience)
+    mlflow.log_param("Train dataset - Speech count", train_dataset.speech_count)
+    mlflow.log_param("Train dataset - Music count", train_dataset.music_count)
+    mlflow.log_param("Train dataset - Speech chunk count", train_dataset.speech_chunk_count)
+    mlflow.log_param("Train dataset - Music chunk count", train_dataset.music_chunk_count)
+    mlflow.log_param("Validation dataset - Speech count", val_dataset.speech_count)
+    mlflow.log_param("Validation dataset - Music count", val_dataset.music_count)
+    mlflow.log_param("Validation dataset - Speech chunk count", val_dataset.speech_chunk_count)
+    mlflow.log_param("Validation dataset - Music chunk count", val_dataset.music_chunk_count)
+    
+    
 
     train_losses = []
     train_accuracies = []
@@ -317,3 +338,4 @@ with mlflow.start_run():
     ax.legend()
     fig.savefig(f"{save_path}/{model_name}_sdr.png")
     mlflow.log_artifact(f"{save_path}/{model_name}_sdr.png")
+# %%
