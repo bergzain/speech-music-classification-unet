@@ -201,13 +201,7 @@ def calculate_number_of_samples():
     print(f"Training dataset - Speech chunk count: {train_dataset.speech_chunk_count}, Music chunk count: {train_dataset.music_chunk_count}")
     print(train_dataset[0][0].shape)
     
-    # save the number of samples in a file to be used in the training script
-    with open("num_samples.txt", "w") as f:
-        f.write(str(val_dataset.speech_chunk_count) + "\n")
-        f.write(str(val_dataset.music_chunk_count) + "\n")
-        f.write(str(train_dataset.speech_chunk_count) + "\n")
-        f.write(str(train_dataset.music_chunk_count) + "\n")
-        f.close()
+
 
 # %%
 
