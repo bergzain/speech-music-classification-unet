@@ -180,7 +180,7 @@ class U_Net(nn.Module):
 
 def test_unet():
     batch_size = 1
-    dummy_mfccs = torch.rand(batch_size, 1, 32, 1120)
+    dummy_mfccs = torch.rand(batch_size, 1, 32, 112)
 
     # Initialize the Attention U-Net model with 1 input channel and 4 output classes
     model = U_Net()

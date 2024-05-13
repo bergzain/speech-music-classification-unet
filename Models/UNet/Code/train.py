@@ -2,6 +2,8 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau 
+
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import seaborn as sns
@@ -19,7 +21,7 @@ from datapreprocessing import AudioProcessor
 mlflow.set_tracking_uri("/Users/zainhazzouri/projects/Bachelor_Thesis/mlflow")
 experiment_name = "UNet_MFCCs"
 mlflow.set_experiment(experiment_name)
-run_name = experiment_name
+run_name = experiment_name + " 150 ms seconds" + " learning decay"
 
 
 # Training parameters
@@ -36,6 +38,8 @@ elif torch.backends.mps.is_built():
     device = "mps"
 else:
     device = "cpu"
+# device = "cpu"
+
 print(f"Using {device}")
 #%%
 path_to_train = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/train/"
@@ -46,16 +50,16 @@ val_dataset = AudioProcessor(audio_dir=path_to_test)
 #%%
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
 #%%
-print(f"Train dataset - Speech count: {train_dataset.speech_count}, Music count: {train_dataset.music_count}")
-print(f"Train dataset - Speech chunk count: {train_dataset.speech_chunk_count}, Music chunk count: {train_dataset.music_chunk_count}")
-print(f"Validation dataset - Speech count: {val_dataset.speech_count}, Music count: {val_dataset.music_count}")
-print(f"Validation dataset - Speech chunk count: {val_dataset.speech_chunk_count}, Music chunk count: {val_dataset.music_chunk_count}")
-#%%
+
 model_name = "U_Net"
 model = U_Net().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+# Initialize the ReduceLROnPlateau scheduler
+scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.01, patience=5, verbose=True)
 #%%
 
 def calculate_sdr(target, prediction):
@@ -122,14 +126,6 @@ with mlflow.start_run(run_name=run_name):
     mlflow.log_param("learning_rate", learning_rate)
     mlflow.log_param("num_epochs", num_epochs)
     mlflow.log_param("patience", patience)
-    mlflow.log_param("Train dataset - Speech count", train_dataset.speech_count)
-    mlflow.log_param("Train dataset - Music count", train_dataset.music_count)
-    mlflow.log_param("Train dataset - Speech chunk count", train_dataset.speech_chunk_count)
-    mlflow.log_param("Train dataset - Music chunk count", train_dataset.music_chunk_count)
-    mlflow.log_param("Validation dataset - Speech count", val_dataset.speech_count)
-    mlflow.log_param("Validation dataset - Music count", val_dataset.music_count)
-    mlflow.log_param("Validation dataset - Speech chunk count", val_dataset.speech_chunk_count)
-    mlflow.log_param("Validation dataset - Music chunk count", val_dataset.music_chunk_count)
     
     
 
@@ -152,7 +148,7 @@ with mlflow.start_run(run_name=run_name):
 
         model.train()
         running_loss = 0.0
-        correct = 0
+        correct = 0 
         total = 0
 
         for i, (inputs, targets) in enumerate(tqdm(train_loader, desc="Training", ncols=100)):
@@ -183,7 +179,9 @@ with mlflow.start_run(run_name=run_name):
         train_accuracies.append(epoch_accuracy)
 
         val_loss, val_accuracy, val_precision, val_recall, val_f1_score, val_mcc, val_sdr = evaluate(val_loader, model, criterion, device)
-
+        # Update the learning rate scheduler "learnung rate decay "
+        scheduler.step(val_loss)
+        
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
         val_precisions.append(val_precision)
@@ -194,7 +192,11 @@ with mlflow.start_run(run_name=run_name):
 
         print(f"Train Loss: {epoch_loss:.4f} | Train Accuracy: {epoch_accuracy:.2f}%")
         print(f"Validation Loss: {val_loss:.4f} | Validation Accuracy: {val_accuracy:.2f}%")
-
+        
+        # Log the updated learning rate
+        current_lr = optimizer.param_groups[0]['lr']
+        mlflow.log_metric("learning_rate", current_lr, step=epoch)
+        
         # Log metrics for each epoch
         mlflow.log_metric("train_loss", epoch_loss, step=epoch)
         mlflow.log_metric("train_accuracy", epoch_accuracy, step=epoch)

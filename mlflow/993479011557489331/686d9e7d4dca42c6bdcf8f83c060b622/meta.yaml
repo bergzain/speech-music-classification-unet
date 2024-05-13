@@ -1,0 +1,15 @@
+artifact_uri: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/993479011557489331/686d9e7d4dca42c6bdcf8f83c060b622/artifacts
+end_time: 1715551360259
+entry_point_name: ''
+experiment_id: '993479011557489331'
+lifecycle_stage: active
+run_id: 686d9e7d4dca42c6bdcf8f83c060b622
+run_name: UNet_MFCCs 150 ms seconds learning decay
+run_uuid: 686d9e7d4dca42c6bdcf8f83c060b622
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1715551357082
+status: 4
+tags: []
+user_id: zainhazzouri

@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1715253574440
+current_stage: None
+description: null
+last_updated_timestamp: 1715253574440
+name: AttentionUNet
+run_id: 8687c0272df54a8aa4564cb7a4b24fc4
+run_link: null
+source: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/802130786707987382/8687c0272df54a8aa4564cb7a4b24fc4/artifacts/model
+status: READY
+status_message: null
+storage_location: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/802130786707987382/8687c0272df54a8aa4564cb7a4b24fc4/artifacts/model
+user_id: null
+version: 5
