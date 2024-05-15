@@ -1,8 +1,9 @@
 artifact_uri: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/993479011557489331/9a15685a867049a89244cfcd450273de/artifacts
+deleted_time: 1715762616072
 end_time: 1715551382549
 entry_point_name: ''
 experiment_id: '993479011557489331'
-lifecycle_stage: active
+lifecycle_stage: deleted
 run_id: 9a15685a867049a89244cfcd450273de
 run_name: UNet_MFCCs 150 ms seconds learning decay
 run_uuid: 9a15685a867049a89244cfcd450273de
