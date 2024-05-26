@@ -17,10 +17,6 @@ import mlflow.pytorch
 from pytorch_grad_cam import GradCAM, HiResCAM, GradCAMElementWise, GradCAMPlusPlus, XGradCAM, AblationCAM, ScoreCAM, EigenCAM, EigenGradCAM, LayerCAM, FullGrad
 from pytorch_grad_cam.utils.image import show_cam_on_image, preprocess_image
 
-
-
-
-
 from cnn_model import U_Net
 from datapreprocessing import AudioProcessor
 #%%
@@ -29,7 +25,6 @@ mlflow.set_tracking_uri("/Users/zainhazzouri/projects/Bachelor_Thesis/mlflow")
 experiment_name = "UNet_MFCCs"
 mlflow.set_experiment(experiment_name)
 run_name = experiment_name + " 150 ms seconds" + " learning decay"
-
 
 # Training parameters
 batch_size = 16 
@@ -59,7 +54,6 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 #%%
-
 model_name = "U_Net"
 model = U_Net(device=device).to(device)
 criterion = nn.CrossEntropyLoss()
@@ -105,11 +99,20 @@ def apply_cam_technique(cam_technique, model, target_layers, input_tensor, devic
     visualized_img = show_cam_on_image(input_image, cam_output_image, use_rgb=True)
 
     # Save the visualized image
-    plt.imsave(f"{save_path}/{cam_technique}_visualization.png", visualized_img)
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.imshow(input_image)
+    plt.title("Original Image")
+    plt.axis('off')
+
+    plt.subplot(1, 2, 2)
     plt.imshow(visualized_img)
     plt.title(f"{cam_technique} Visualization")
-    plt.show()
+    plt.axis('off')
 
+    plt.tight_layout()
+    plt.savefig(f"{save_path}/{cam_technique}_visualization.png")
+    plt.show()
 
 #%%
 # Load the best model
