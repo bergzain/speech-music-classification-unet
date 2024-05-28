@@ -349,34 +349,34 @@ with mlflow.start_run(run_name=run_name):
 # %%
 
 
-#%%
-# Load the best model
-# model.init_fc_layer()  # Initialize the fully connected layer correctly.
+# #%%
+# # Load the best model
+# # model.init_fc_layer()  # Initialize the fully connected layer correctly.
 
-model.load_state_dict(torch.load(f'{save_path}/best_model.pth'),strict=False)
-#%%
-# Create an instance of the Grad-CAM technique you want to use
-target_layers = [model.Conv_1x1]  # Adjust based on the layer you want to target
-cam_extractor = GradCAM(model=model, target_layers=target_layers)
+# model.load_state_dict(torch.load(f'{save_path}/best_model.pth'),strict=False)
+# #%%
+# # Create an instance of the Grad-CAM technique you want to use
+# target_layers = [model.Conv_1x1]  # Adjust based on the layer you want to target
+# cam_extractor = GradCAM(model=model, target_layers=target_layers)
 
-#%%
-# Prepare the input data
-input_tensor = next(iter(val_loader))[0].to(device)  # Get a batch of input data
-#%%
-# Generate the Grad-CAM visualization
-input_tensor = input_tensor.requires_grad_(True)  # Ensure the input tensor requires gradients
-cam_output = cam_extractor(input_tensor=input_tensor)  # Generate the Grad-CAM output
-#%%
-# Visualize the Grad-CAM output
-input_image = input_tensor[0].permute(1, 2, 0).cpu().detach().numpy()
-input_image = input_image.astype(np.float32) / 255.0  # Normalize to [0, 1]
-cam_output_image = cam_output[0]  # No need for .cpu().detach().numpy() as it's already a numpy array
+# #%%
+# # Prepare the input data
+# input_tensor = next(iter(val_loader))[0].to(device)  # Get a batch of input data
+# #%%
+# # Generate the Grad-CAM visualization
+# input_tensor = input_tensor.requires_grad_(True)  # Ensure the input tensor requires gradients
+# cam_output = cam_extractor(input_tensor=input_tensor)  # Generate the Grad-CAM output
+# #%%
+# # Visualize the Grad-CAM output
+# input_image = input_tensor[0].permute(1, 2, 0).cpu().detach().numpy()
+# input_image = input_image.astype(np.float32) / 255.0  # Normalize to [0, 1]
+# cam_output_image = cam_output[0]  # No need for .cpu().detach().numpy() as it's already a numpy array
 
-visualized_img = show_cam_on_image(input_image, cam_output_image, use_rgb=True)
+# visualized_img = show_cam_on_image(input_image, cam_output_image, use_rgb=True)
 
-# Save the visualized image
-plt.imsave(f"{save_path}/gradcam_visualization.png", visualized_img)
-# plot show 
-plt.imshow(visualized_img)
+# # Save the visualized image
+# plt.imsave(f"{save_path}/gradcam_visualization.png", visualized_img)
+# # plot show 
+# plt.imshow(visualized_img)
 
 # %%
