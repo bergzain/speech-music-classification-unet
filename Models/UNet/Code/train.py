@@ -27,8 +27,7 @@ from datapreprocessing import AudioProcessor
 mlflow.set_tracking_uri("/Users/zainhazzouri/projects/Bachelor_Thesis/mlflow")
 experiment_name = "UNet_MFCCs"
 mlflow.set_experiment(experiment_name)
-run_name = experiment_name + " 150 ms seconds" + " learning decay"
-
+run_name = experiment_name 
 
 # Training parameters
 batch_size = 16 

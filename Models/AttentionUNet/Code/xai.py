@@ -6,16 +6,18 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics import precision_recall_fscore_support, matthews_corrcoef, confusion_matrix
 import numpy as np
 import pandas as pd
 import mlflow
 import mlflow.pytorch
-
-from pytorch_grad_cam import GradCAM, HiResCAM, GradCAMElementWise, GradCAMPlusPlus, XGradCAM, AblationCAM, ScoreCAM, EigenCAM, EigenGradCAM, LayerCAM, FullGrad
-from pytorch_grad_cam.utils.image import show_cam_on_image, preprocess_image
+import librosa
+import librosa.display
+import random
+from pytorch_grad_cam import GradCAM, HiResCAM, GradCAMElementWise, GradCAMPlusPlus, XGradCAM, AblationCAM, ScoreCAM, LayerCAM, FullGrad
+from pytorch_grad_cam.utils.image import show_cam_on_image
+from scipy.ndimage import zoom
 
 from cnn_model import AttentionUNet
 from datapreprocessing import AudioProcessor
@@ -27,6 +29,8 @@ experiment_name = "AttentionUNet_MFCCs"
 mlflow.set_experiment(experiment_name)
 #%%
 # Training parameters
+target_sample_rate = 44100  # Define your target sample rate
+
 batch_size = 8
 learning_rate = 1e-3 # 1e-4= 0.0001
 num_epochs = 100
@@ -62,79 +66,11 @@ model = AttentionUNet().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-# Initialize the ReduceLROnPlateau scheduler
-scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.01, patience=5, verbose=True)
-#%%
-
-def apply_cam_technique(cam_technique, model, target_layers, input_tensor, device, save_path):
-    if cam_technique == "GradCAM":
-        cam_extractor = GradCAM(model=model, target_layers=target_layers)
-    elif cam_technique == "HiResCAM":
-        cam_extractor = HiResCAM(model=model, target_layers=target_layers)
-    elif cam_technique == "GradCAMElementWise":
-        cam_extractor = GradCAMElementWise(model=model, target_layers=target_layers)
-    elif cam_technique == "GradCAMPlusPlus":
-        cam_extractor = GradCAMPlusPlus(model=model, target_layers=target_layers)
-    elif cam_technique == "XGradCAM":
-        cam_extractor = XGradCAM(model=model, target_layers=target_layers)
-    elif cam_technique == "AblationCAM":
-        cam_extractor = AblationCAM(model=model, target_layers=target_layers)
-    elif cam_technique == "ScoreCAM":
-        cam_extractor = ScoreCAM(model=model, target_layers=target_layers)
-    elif cam_technique == "EigenCAM":
-        cam_extractor = EigenCAM(model=model, target_layers=target_layers)
-    elif cam_technique == "EigenGradCAM":
-        cam_extractor = EigenGradCAM(model=model, target_layers=target_layers)
-    elif cam_technique == "LayerCAM":
-        cam_extractor = LayerCAM(model=model, target_layers=target_layers)
-    elif cam_technique == "FullGrad":
-        cam_extractor = FullGrad(model=model, target_layers=target_layers)
-    else:
-        raise ValueError(f"Unknown CAM technique: {cam_technique}")
-
-    input_tensor = input_tensor.requires_grad_(True)  # Ensure the input tensor requires gradients
-    cam_output = cam_extractor(input_tensor=input_tensor)  # Generate the Grad-CAM output
-
-    input_image = input_tensor[0].permute(1, 2, 0).cpu().detach().numpy()
-    input_image = input_image.astype(np.float32) / 255.0  # Normalize to [0, 1]
-    cam_output_image = cam_output[0]  # No need for .cpu().detach().numpy() as it's already a numpy array
-
-    visualized_img = show_cam_on_image(input_image, cam_output_image, use_rgb=True)
-
-    # Save the visualized image
-    plt.figure(figsize=(10, 5))
-    plt.subplot(1, 2, 1)
-    plt.imshow(input_image)
-    plt.title("Original Image")
-    plt.axis('off')
-
-    plt.subplot(1, 2, 2)
-    plt.imshow(visualized_img)
-    plt.title(f"{cam_technique} Visualization")
-    plt.axis('off')
-
-    plt.tight_layout()
-    plt.savefig(f"{save_path}/{cam_technique}_visualization.png")
-    plt.show()
-
-#%%
 # Load the best model
-# model.init_fc_layer()  # Initialize the fully connected layer correctly.
+model.load_state_dict(torch.load(f'{save_path}/best_model.pth'), strict=False)
 
-model.load_state_dict(torch.load(f'{save_path}/best_model.pth'),strict=False)
-#%%
-# Create an instance of the Grad-CAM technique you want to use
-target_layers = [model.Conv_1x1]  # Adjust based on the layer you want to target
-cam_extractor = GradCAM(model=model, target_layers=target_layers)
 
-#%%
-# Prepare the input data
-input_tensor = next(iter(val_loader))[0].to(device)  # Get a batch of input data
-#%%
 # Generate the Grad-CAM visualization
-input_tensor = input_tensor.requires_grad_(True)  # Ensure the input tensor requires gradients
-cam_output = cam_extractor(input_tensor=input_tensor)  # Generate the Grad-CAM output
-# # %%
 cam_techniques = [
         "GradCAM",
         "HiResCAM",
@@ -149,6 +85,74 @@ cam_techniques = [
         "FullGrad"
     ]
 
+# Grad-CAM Application Function with Normalization and Smoothing
+def apply_cam_technique(cam_technique, model, target_layers, input_tensor):
+    cam_dict = {
+        "GradCAM": GradCAM,
+        "HiResCAM": HiResCAM,
+        "GradCAMElementWise": GradCAMElementWise,
+        "GradCAMPlusPlus": GradCAMPlusPlus,
+        "XGradCAM": XGradCAM,
+        "AblationCAM": AblationCAM,
+        "ScoreCAM": ScoreCAM,
+        # "EigenCAM": EigenCAM,
+        # "EigenGradCAM": EigenGradCAM,
+        "LayerCAM": LayerCAM,
+        "FullGrad": FullGrad
+    }
+    cam = cam_dict[cam_technique](model=model, target_layers=target_layers)
+    grayscale_cam = cam(input_tensor=input_tensor)
+    grayscale_cam = grayscale_cam[0, :]
+    return grayscale_cam
+
+
+# Enhanced Plotting Function with Librosa and Side-by-Side Comparison
+def plot_cam_side_by_side_with_librosa(original, cam_image, title, save_path):
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    
+    # Normalize CAM image
+    cam_image = (cam_image - np.min(cam_image)) / (np.max(cam_image) - np.min(cam_image))
+    
+    # Squeeze the original if needed
+    if original.shape[0] == 1:
+        original = original.squeeze(0)
+    
+    # Resize the CAM image to match the original MFCC dimensions using zoom
+    zoom_factors = (original.shape[0] / cam_image.shape[0], original.shape[1] / cam_image.shape[1])
+    cam_image_resized = zoom(cam_image, zoom_factors)
+    
+    # Plot original MFCC using librosa
+    img = librosa.display.specshow(original, sr=target_sample_rate, x_axis='time', ax=axes[0], cmap='magma')
+    fig.colorbar(img, ax=axes[0], format="%+2.f dB")
+    axes[0].set_title("Original MFCC")
+    
+    # Plot MFCC with GradCAM overlay
+    img = axes[1].imshow(original, cmap='magma', aspect='auto', origin='lower')
+    axes[1].imshow(cam_image_resized, cmap='jet', alpha=0.5, aspect='auto', origin='lower')
+    fig.colorbar(img, ax=axes[1], format="%+2.f dB")
+    axes[1].set_title(f"{title} CAM")
+    
+    plt.suptitle(title)
+    plt.savefig(f"{save_path}/{title}_cam.png")
+    plt.show()
+
+
+# Main processing function
+model.eval()
+# 
+target_layers = [model.Conv5] # The last convolutional block before upsampling 
+# target_layers = [model.Up_conv5] # The first upsampling layer 
+
+
+
+# Process and visualize a random sample
+random_idx = random.randint(0, len(val_loader.dataset) - 1)
+random_sample, _ = val_loader.dataset[random_idx]
+input_tensor = random_sample.unsqueeze(0).to(device)  # Convert to batch format
+
+
 for cam_technique in cam_techniques:
-    apply_cam_technique(cam_technique, model, target_layers, input_tensor, device, save_path)
+    grayscale_cam = apply_cam_technique(cam_technique, model, target_layers, input_tensor)
+    plot_cam_side_by_side_with_librosa(input_tensor[0].cpu().numpy(), grayscale_cam, cam_technique, save_path)# %%
+
 # %%
