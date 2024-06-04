@@ -29,7 +29,7 @@ from datapreprocessing import AudioProcessor
 #  parameters
 target_sample_rate = 44100  # Define your target sample rate
 
-batch_size = 8
+batch_size = 32
 learning_rate = 1e-3 # 1e-4= 0.0001
 num_epochs = 100
 patience = 10 # for early stopping
@@ -37,7 +37,7 @@ patience = 10 # for early stopping
 
 
 # Set a random seed for reproducibility
-random_seed = 42
+random_seed = 23
 random.seed(random_seed)
 np.random.seed(random_seed)
 torch.manual_seed(random_seed)

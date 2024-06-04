@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 import mlflow
 import mlflow.pytorch
+from torch.optim.lr_scheduler import ReduceLROnPlateau 
+
 
 
 
@@ -23,7 +25,7 @@ from datapreprocessing import AudioProcessor
 mlflow.set_tracking_uri("/Users/zainhazzouri/projects/Bachelor_Thesis/mlflow")
 experiment_name = "R2UNet_Delta"
 mlflow.set_experiment(experiment_name)
-run_name = experiment_name+"1"  
+run_name = experiment_name
 
 #%%
 # Training parameters
@@ -61,6 +63,9 @@ model_name = "R2U_Net"
 model = R2U_Net().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+# Initialize the ReduceLROnPlateau scheduler
+scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.01, patience=5, verbose=True)
 
 #%%
 def calculate_sdr(target, prediction):
@@ -153,6 +158,9 @@ with mlflow.start_run(run_name=run_name):
     mlflow.log_param("batch_size", batch_size)
     mlflow.log_param("learning_rate", learning_rate)
     mlflow.log_param("num_epochs", num_epochs)
+    mlflow.log_param("patience", patience)
+    
+    
 
     train_losses = []
     train_accuracies = []
@@ -173,7 +181,7 @@ with mlflow.start_run(run_name=run_name):
 
         model.train()
         running_loss = 0.0
-        correct = 0
+        correct = 0 
         total = 0
 
         for i, (inputs, targets) in enumerate(tqdm(train_loader, desc="Training", ncols=100)):
@@ -204,7 +212,9 @@ with mlflow.start_run(run_name=run_name):
         train_accuracies.append(epoch_accuracy)
 
         val_loss, val_accuracy, val_precision, val_recall, val_f1_score, val_mcc, val_sdr = evaluate(val_loader, model, criterion, device)
-
+        # Update the learning rate scheduler "learnung rate decay "
+        scheduler.step(val_loss)
+        
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
         val_precisions.append(val_precision)
@@ -215,7 +225,11 @@ with mlflow.start_run(run_name=run_name):
 
         print(f"Train Loss: {epoch_loss:.4f} | Train Accuracy: {epoch_accuracy:.2f}%")
         print(f"Validation Loss: {val_loss:.4f} | Validation Accuracy: {val_accuracy:.2f}%")
-
+        
+        # Log the updated learning rate
+        current_lr = optimizer.param_groups[0]['lr']
+        mlflow.log_metric("learning_rate", current_lr, step=epoch)
+        
         # Log metrics for each epoch
         mlflow.log_metric("train_loss", epoch_loss, step=epoch)
         mlflow.log_metric("train_accuracy", epoch_accuracy, step=epoch)
@@ -234,7 +248,7 @@ with mlflow.start_run(run_name=run_name):
             best_val_Accuracy = val_accuracy
             no_improv_counter = 0
             best_epoch = epoch 
-            torch.save(model.state_dict(), f"{save_path}/best_model.pth")
+            torch.save(model.state_dict(), f"{save_path}/{model_name}.pth")
         else:
             no_improv_counter += 1
 
@@ -359,3 +373,4 @@ with mlflow.start_run(run_name=run_name):
     ax.legend()
     fig.savefig(f"{save_path}/{model_name}_sdr.png")
     mlflow.log_artifact(f"{save_path}/{model_name}_sdr.png")
+# %%

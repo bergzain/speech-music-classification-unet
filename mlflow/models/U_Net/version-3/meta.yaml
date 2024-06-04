@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1717360432388
+current_stage: None
+description: null
+last_updated_timestamp: 1717360432388
+name: U_Net
+run_id: cbd7f629ee9f4e8fb7c51aca3e12fbd9
+run_link: null
+source: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/594388770498243975/cbd7f629ee9f4e8fb7c51aca3e12fbd9/artifacts/model
+status: READY
+status_message: null
+storage_location: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/594388770498243975/cbd7f629ee9f4e8fb7c51aca3e12fbd9/artifacts/model
+user_id: null
+version: 3
