@@ -16,7 +16,7 @@ from cnn_model import U_Net
 
 
 
-save_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/results/UNet/MFCCs"
+save_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/results/UNet/MFCCs_delta_delta"
 
 #  parameters
 target_sample_rate = 44100  # Define your target sample rate
@@ -48,7 +48,7 @@ val_dataset = AudioProcessor(audio_dir=path_to_test)
 # train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-model = U_Net(device=device).to(device)
+model = U_Net().to(device)
 model_name = "U_Net"
 
 # Load the best model
@@ -125,10 +125,9 @@ def plot_cam_side_by_side_with_librosa(original, cam_images, titles, save_path, 
 # Main processing function
 model.eval()
 # 
-# target_layers = [model.Conv5] # The last convolutional block before upsampling 
+#target_layers = [model.Conv5] # The last convolutional block before upsampling 
 # target_layers = [model.Up_conv5] # The first upsampling layer 
 target_layers = [model.Conv_1x1] # the final layer 
-
 
 
 

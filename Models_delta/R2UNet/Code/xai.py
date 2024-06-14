@@ -8,15 +8,13 @@ import librosa.display
 import random
 from pytorch_grad_cam import GradCAM, HiResCAM, GradCAMElementWise, GradCAMPlusPlus, XGradCAM, AblationCAM, ScoreCAM, LayerCAM, FullGrad
 from scipy.ndimage import zoom
+import random
 
 
+from cnn_model import R2U_Net
 from datapreprocessing import AudioProcessor
-from cnn_model import U_Net
-
-
-
-
-save_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/results/UNet/MFCCs"
+#%%
+save_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/results/R2UNet/MFCCs_delta"
 
 #  parameters
 target_sample_rate = 44100  # Define your target sample rate
@@ -48,11 +46,13 @@ val_dataset = AudioProcessor(audio_dir=path_to_test)
 # train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-model = U_Net(device=device).to(device)
-model_name = "U_Net"
+
+model_name = "AttentionUNet"
+model = R2U_Net().to(device)
 
 # Load the best model
 model.load_state_dict(torch.load(f'{save_path}/best_model.pth'), strict=False)
+
 
 
 # Generate the Grad-CAM visualization
@@ -110,7 +110,7 @@ def plot_cam_side_by_side_with_librosa(original, cam_images, titles, save_path, 
         zoom_factors = (original.shape[0] / cam_image.shape[0], original.shape[1] / cam_image.shape[1])
         cam_image_resized = zoom(cam_image, zoom_factors)
         
-        # Plot MFCC with GradCAM overlay
+        # Plot MFCC with GradCAM overlays=
         img = axes[i].imshow(original, cmap='magma', aspect='auto', origin='lower')
         axes[i].imshow(cam_image_resized, cmap='jet', alpha=0.5, aspect='auto', origin='lower')
         fig.colorbar(img, ax=axes[i], format="%+2.f dB")
@@ -125,10 +125,9 @@ def plot_cam_side_by_side_with_librosa(original, cam_images, titles, save_path, 
 # Main processing function
 model.eval()
 # 
-# target_layers = [model.Conv5] # The last convolutional block before upsampling 
+#target_layers = [model.Conv5] # The last convolutional block before upsampling 
 # target_layers = [model.Up_conv5] # The first upsampling layer 
 target_layers = [model.Conv_1x1] # the final layer 
-
 
 
 
