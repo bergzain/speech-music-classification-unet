@@ -11,18 +11,28 @@ import IPython.display as ipd
 from torch.utils.data import Dataset
 import os
 
+#%% 
+
+##### expermintal code 
+# waveform, sampleRate = torchaudio.load("/Users/zainhazzouri/projects/Raw_Data/GTZAN/music_wav/bagpipe.wav")
+# print("waveform.shape:", waveform.shape)
+# print("sampleRate:",sampleRate)
+# mfcc = torchaudio.transforms.MFCC(sample_rate=sampleRate, n_mfcc=80)(waveform)
+# print("mfcc.shape:", mfcc.shape)
 
 
-length_in_seconds = 5 # duration in seconds
-n_mfcc = 32 # number of MFCCs features
+
+
+#%%
+length_in_seconds = 10 # duration in seconds
+n_mfcc = 80 # number of MFCCs features
 sample_rate = 44100 # check data_parsing_and_preprocessing.ipynb
 target_sample_rate = 44100  # Define your target sample rate
-samples_for_ten_seconds = length_in_seconds * sample_rate
-target_length = samples_for_ten_seconds  # Assuming this is the length of the audio you want to process
+target_length =  length_in_seconds * sample_rate
 
 
 class AudioProcessor(Dataset):
-    def __init__(self, audio_dir, n_mfcc=n_mfcc,num_samples=samples_for_ten_seconds):
+    def __init__(self, audio_dir, n_mfcc=n_mfcc,num_samples=target_length):
         self.audio_dir = audio_dir
         self.n_mfcc = n_mfcc
         self.device = self.get_device()
@@ -194,12 +204,12 @@ def calculate_number_of_samples():
     print(val_dataset[0][0].shape)
     
 
-    path_to_train = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/train/"
-    train_dataset = AudioProcessor(audio_dir=path_to_train)
-    train_dataset.count_chunks(train_dataset.load_audio_files_and_labels())
-    print(f"Training dataset - Speech count: {train_dataset.speech_count}, Music count: {train_dataset.music_count}")
-    print(f"Training dataset - Speech chunk count: {train_dataset.speech_chunk_count}, Music chunk count: {train_dataset.music_chunk_count}")
-    print(train_dataset[0][0].shape)
+    # path_to_train = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/train/"
+    # train_dataset = AudioProcessor(audio_dir=path_to_train)
+    # train_dataset.count_chunks(train_dataset.load_audio_files_and_labels())
+    # print(f"Training dataset - Speech count: {train_dataset.speech_count}, Music count: {train_dataset.music_count}")
+    # print(f"Training dataset - Speech chunk count: {train_dataset.speech_chunk_count}, Music chunk count: {train_dataset.music_chunk_count}")
+    # print(train_dataset[0][0].shape)
     
 
 

@@ -48,7 +48,7 @@ val_dataset = AudioProcessor(audio_dir=path_to_test)
 # train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-model = U_Net(device=device).to(device)
+model = U_Net().to(device)
 model_name = "U_Net"
 
 # Load the best model

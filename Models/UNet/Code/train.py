@@ -25,12 +25,12 @@ from datapreprocessing import AudioProcessor
 #%%
 # Set MLflow tracking URI and experiment name
 mlflow.set_tracking_uri("/Users/zainhazzouri/projects/Bachelor_Thesis/mlflow")
-experiment_name = "UNet_MFCCs"
+experiment_name = "UNet_MFCCs_80_features_10_seconds"
 mlflow.set_experiment(experiment_name)
 run_name = experiment_name 
 
 # Training parameters
-batch_size = 16 
+batch_size = 4
 learning_rate = 1e-3
 num_epochs = 100
 patience = 10
@@ -59,7 +59,7 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 #%%
 
 model_name = "U_Net"
-model = U_Net(device=device).to(device)
+model = U_Net().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 

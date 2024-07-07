@@ -24,14 +24,14 @@ from datapreprocessing import AudioProcessor
 
 # set Mlflow tracking uri and  experiment name
 mlflow.set_tracking_uri("/Users/zainhazzouri/projects/Bachelor_Thesis/mlflow")
-experiment_name = "AttentionR2UNet_MFCCs"
+experiment_name = "AttentionR2UNet_MFCCs_80_features_10_seconds"
 mlflow.set_experiment(experiment_name)
 run_name = experiment_name
 
 
 #%%
 # Training parameters
-batch_size = 8
+batch_size = 2
 learning_rate = 1e-3 # 1e-4= 0.0001
 num_epochs = 100
 patience = 10 # for early stopping

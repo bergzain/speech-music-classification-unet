@@ -1,6 +1,4 @@
-
-
-
+#%%
 import glob
 import random
 import torch
@@ -13,18 +11,28 @@ import IPython.display as ipd
 from torch.utils.data import Dataset
 import os
 
+#%% 
+
+##### expermintal code 
+# waveform, sampleRate = torchaudio.load("/Users/zainhazzouri/projects/Raw_Data/GTZAN/music_wav/bagpipe.wav")
+# print("waveform.shape:", waveform.shape)
+# print("sampleRate:",sampleRate)
+# mfcc = torchaudio.transforms.MFCC(sample_rate=sampleRate, n_mfcc=80)(waveform)
+# print("mfcc.shape:", mfcc.shape)
 
 
-length_in_seconds = 5 # duration in seconds
-n_mfcc = 32 # number of MFCCs features
+
+
+#%%
+length_in_seconds = 10 # duration in seconds
+n_mfcc = 80 # number of MFCCs features
 sample_rate = 44100 # check data_parsing_and_preprocessing.ipynb
 target_sample_rate = 44100  # Define your target sample rate
-samples_for_ten_seconds = length_in_seconds * sample_rate
-target_length = samples_for_ten_seconds  # Assuming this is the length of the audio you want to process
+target_length =  length_in_seconds * sample_rate
 
 
 class AudioProcessor(Dataset):
-    def __init__(self, audio_dir, n_mfcc=n_mfcc,num_samples=samples_for_ten_seconds):
+    def __init__(self, audio_dir, n_mfcc=n_mfcc,num_samples=target_length):
         self.audio_dir = audio_dir
         self.n_mfcc = n_mfcc
         self.device = self.get_device()
@@ -33,7 +41,13 @@ class AudioProcessor(Dataset):
         self.load_audio_files()
         self.target_sample_rate = target_sample_rate
         self.num_samples = num_samples
+        self.speech_count = 0
+        self.music_count = 0
+        self.speech_chunk_count = 0
+        self.music_chunk_count = 0
         self.audio_files_and_labels = self.load_audio_files_and_labels()
+
+
 
     def load_audio_files(self):
         self.music_waves = glob.glob(os.path.join(self.audio_dir, "music_wav", "*.wav"))
@@ -68,10 +82,20 @@ class AudioProcessor(Dataset):
                                               n_mfcc=self.n_mfcc)(wf)
             # Reshape mfcc to [1, 32,1120 ]
             # print(f"mfcc.shape before reshaping: {mfcc.shape}")
-            mfcc = mfcc[:, :, :1120] 
-            if mfcc.shape[2] < 1120:
-                # If the resulting MFCC is too short in the time dimension, pad it
-                mfcc = torch.nn.functional.pad(mfcc, (0, 1120 - mfcc.shape[2]))
+            
+            # mfcc = mfcc[:, :, :1120] 
+            
+            temp  = mfcc.shape[2] / 112
+            temp = round(temp)
+            if temp == 0:
+                temp = 1
+            temp = temp * 112
+            # print(f"temp: {temp}")
+            if mfcc.shape[2] > temp:
+                mfcc = mfcc[:, :, :temp]
+            elif mfcc.shape[2] < temp :
+                mfcc = torch.nn.functional.pad(mfcc, (0, temp - mfcc.shape[2]))
+            
             mfccs.append(mfcc)
         return torch.stack(mfccs)
 
@@ -85,6 +109,25 @@ class AudioProcessor(Dataset):
                 files_and_labels.append((file_path, i))
         return files_and_labels
 
+    def count_chunks(self, files_and_labels):
+        """Counts the number of chunks for each category (music and speech).
+
+        Args:
+            files_and_labels: A list of tuples, where each tuple contains the file path and its corresponding label.
+
+        Returns:
+            None
+        """
+        for file_path, label in files_and_labels:
+            if label == 0:  # music_wav
+                self.music_count += 1
+                # Increment music chunk count after preprocessing
+                self.music_chunk_count += len(self.preprocess(file_path))
+            else:  # speech_wav
+                self.speech_count += 1
+                # Increment speech chunk count after preprocessing
+                self.speech_chunk_count += len(self.preprocess(file_path))
+
     def __len__(self):
         return len(self.audio_files_and_labels)
 
@@ -95,23 +138,26 @@ class AudioProcessor(Dataset):
         # return 1 mfcc from chunks of mfccs and label
         for mfcc in mfccs:
             # print(f"mfcc.shape: {mfcc.shape}")
+            if label == 0:
+                self.music_chunk_count += 1
+            else:
+                self.speech_chunk_count += 1
             return mfcc, label
 
-
+    
     def _cut_if_necessary(self, signal):
-        
-        target_length = self.num_samples
+        target_length = int(self.num_samples)
         split_signals = []
 
         # Iterate over the signal in chunks of target_length
-        for start in range(0, signal.shape[1], target_length):
-            end = start + target_length
-            if end <= signal.shape[1]:
+        for start in range(0, int(signal.shape[1]), int(target_length)):
+            end = start + int(target_length)
+            if end <= int(signal.shape[1]):
                 split_signals.append(signal[:, start:end])
             else:
                 # If the last chunk is shorter than target_length, it can be discarded or padded
                 # Here, we choose to pad the last chunk
-                padding = target_length - (signal.shape[1] - start)
+                padding = int(target_length - (int(signal.shape[1]) - start))
                 split_signal = torch.nn.functional.pad(signal[:, start:], (0, padding))
                 split_signals.append(split_signal)
                 break  # No more chunks after the last one
@@ -144,8 +190,30 @@ class AudioProcessor(Dataset):
             # print(f"signal.shape after downmixing: {signal.shape}")
         return signal
 
+#%%
+def calculate_number_of_samples():
+    path_to_test = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/" 
+    # # #
+    val_dataset = AudioProcessor(audio_dir=path_to_test)
+    
+    val_dataset.count_chunks(val_dataset.load_audio_files_and_labels())
 
-# path_to_test = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/"
-# #
-# val_dataset = AudioProcessor(audio_dir=path_to_test)
-# print(val_dataset[0][0].shape)
+
+    print(f"Validation dataset - Speech count: {val_dataset.speech_count}, Music count: {val_dataset.music_count}")
+    print(f"Validation dataset - Speech chunk count: {val_dataset.speech_chunk_count}, Music chunk count: {val_dataset.music_chunk_count}")
+    print(val_dataset[0][0].shape)
+    
+
+    # path_to_train = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/train/"
+    # train_dataset = AudioProcessor(audio_dir=path_to_train)
+    # train_dataset.count_chunks(train_dataset.load_audio_files_and_labels())
+    # print(f"Training dataset - Speech count: {train_dataset.speech_count}, Music count: {train_dataset.music_count}")
+    # print(f"Training dataset - Speech chunk count: {train_dataset.speech_chunk_count}, Music chunk count: {train_dataset.music_chunk_count}")
+    # print(train_dataset[0][0].shape)
+    
+
+
+# %%
+
+# calculate_number_of_samples()
+# %%

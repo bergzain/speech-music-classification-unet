@@ -1,0 +1,16 @@
+artifact_uri: /Users/zainhazzouri/projects/Bachelor_Thesis/mlflow/405602182953344423/8b04bf3f89a14b5997097f10bca611c9/artifacts
+deleted_time: 1718886018989
+end_time: 1718749548700
+entry_point_name: ''
+experiment_id: '405602182953344423'
+lifecycle_stage: deleted
+run_id: 8b04bf3f89a14b5997097f10bca611c9
+run_name: R2UNet_MFCCs_80_features_10_seconds
+run_uuid: 8b04bf3f89a14b5997097f10bca611c9
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1718749522850
+status: 4
+tags: []
+user_id: zainhazzouri

@@ -2,22 +2,22 @@
 
 # Define the paths to the Python training scripts
 SCRIPTS=(
-    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/UNet/Code/xai.py"
-    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/AttentionUNet/Code/xai.py"
-    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/R2UNet/Code/xai.py"
-    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/AttentionR2UNet/Code/xai.py"
+    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/UNet/Code/xai.py"
+    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/AttentionUNet/Code/xai.py"
+    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/R2UNet/Code/xai.py"
+    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/AttentionR2UNet/Code/xai.py"
     # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_delta/UNet/Code/xai.py"
     # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_delta/AttentionUNet/Code/xai.py"
     # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_delta/R2UNet/Code/xai.py"
     # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_delta/AttentionR2UNet/Code/xai.py"
-    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_delta_delta/UNet/Code/xai.py"
+    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_delta_delta/UNet/Code/xai.py"
     # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_delta_delta/AttentionUNet/Code/xai.py"
-    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_delta_delta/R2UNet/Code/xai.py"
-    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_delta_delta/AttentionR2UNet/Code/xai.py"
-    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_LFCC/UNet/Code/xai.py"
-    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_LFCC/AttentionUNet/Code/xai.py"
-    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_LFCC/R2UNet/Code/xai.py"
-    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_LFCC/AttentionR2UNet/Code/xai.py"
+    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_delta_delta/R2UNet/Code/xai.py"
+    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_delta_delta/AttentionR2UNet/Code/xai.py"
+    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_LFCC/UNet/Code/xai.py"
+    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_LFCC/AttentionUNet/Code/xai.py"
+    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_LFCC/R2UNet/Code/xai.py"
+    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models_LFCC/AttentionR2UNet/Code/xai.py"
 )
 
 # Function to clear Python cache

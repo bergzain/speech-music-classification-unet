@@ -2,8 +2,8 @@
 
 # Define the paths to the Python training scripts
 SCRIPTS=(
-    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/UNet/Code/train.py"
-    "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/AttentionUNet/Code/train.py"
+    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/UNet/Code/train.py"
+    # "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/AttentionUNet/Code/train.py"
     "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/R2UNet/Code/train.py"
     "/Users/zainhazzouri/projects/Bachelor_Thesis/Models/AttentionR2UNet/Code/train.py"
 )
