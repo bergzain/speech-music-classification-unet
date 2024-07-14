@@ -3,7 +3,7 @@ srun -K \
 --job-name="speech_music_classification" \
 --gpus=1 \
 --container-mounts=/netscratch/$USER:/netscratch/$USER,/ds:/ds:ro,"`pwd`":"`pwd`" \ 
---container-image=/enroot/nvcr.io_nvidia_pytorch_23.12-py3.sqsh \
+--container-image=/enroot/nvcr.io_nvidia_pytorch_24.06-py3.sqsh \
 --container-workdir="`pwd`" \
 -p A100-PCI \
 --mem 64GB \
