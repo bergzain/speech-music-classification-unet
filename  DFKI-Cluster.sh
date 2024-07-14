@@ -5,7 +5,11 @@ srun -K \
 --container-mounts=/netscratch/$USER:/netscratch/$USER,/ds:/ds:ro,"`pwd`":"`pwd`" \ 
 --container-image=/enroot/nvcr.io_nvidia_pytorch_23.12-py3.sqsh \
 --container-workdir="`pwd`" \
+-p A100-PCI \
+--mem 64GB \
+--gpus 1 \
 
+pip install -r requirements.txt
 # Define the paths to the Python training scripts
 SCRIPTS=(
     "/home/zhazzouri/speech-music-classification-unet/Models/UNet/Code/train.py"
