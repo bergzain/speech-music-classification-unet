@@ -1,3 +1,20 @@
+#!/bin/bash
+
+# make sure only first task per node installs stuff, others wait
+DONEFILE="/tmp/install_done_${SLURM_JOBID}"
+if [[ $SLURM_LOCALID == 0 ]]; then
+  
+  # put your install commands here:
+    module load python/3.10.11
+    pip install -r requirements.txt
+  
+  # Tell other tasks we are done installing
+  touch "${DONEFILE}"
+else
+  # Wait until packages are installed
+  while [[ ! -f "${DONEFILE}" ]]; do sleep 1; done
+fi
+
 
 srun -K \
 --job-name="speech_music_classification" \
@@ -6,11 +23,9 @@ srun -K \
 --container-image=/enroot/nvcr.io_nvidia_pytorch_24.06-py3.sqsh \
 --container-workdir="`pwd`" \
 -p A100-PCI \
---mem 64GB \
+--mem 128GB \
 --gpus 1 \
-module load python/3.10.11
 
-pip install -r requirements.txt
 # Define the paths to the Python training scripts
 SCRIPTS=(
     "/home/zhazzouri/speech-music-classification-unet/Models/UNet/Code/train.py"
