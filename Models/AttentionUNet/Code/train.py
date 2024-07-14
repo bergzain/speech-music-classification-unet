@@ -17,19 +17,21 @@ import mlflow.pytorch
 
 from cnn_model import AttentionUNet
 from datapreprocessing import AudioProcessor
+main_path = "/home/zhazzouri/speech-music-classification-unet/"
+data_main_path = "/netscratch/zhazzouri/dataset/"
 
 # set Mlflow tracking uri and  experiment name
-mlflow.set_tracking_uri("/Users/zainhazzouri/projects/Bachelor_Thesis/mlflow")
+mlflow.set_tracking_uri(main_path+ "/mlflow")
 experiment_name = "AttentionUNet_MFCCs_80_features_10_seconds"
 mlflow.set_experiment(experiment_name)
 run_name = experiment_name
 #%%
 # Training parameters
-batch_size = 4
+batch_size = 32
 learning_rate = 1e-3 # 1e-4= 0.0001
 num_epochs = 100
 patience = 10 # for early stopping
-save_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/results/Attention_UNet/MFCCs"
+save_path = main_path + "results/Attention_UNet/MFCCs"
 
 #%%
 # Set device
@@ -42,8 +44,8 @@ else:
 print(f"Using {device}")
 
 #%%
-path_to_train = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/train/"
-path_to_test = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/"
+path_to_train = data_main_path + "train/"
+path_to_test =  data_main_path + "test/"
 
 train_dataset = AudioProcessor(audio_dir=path_to_train)
 val_dataset = AudioProcessor(audio_dir=path_to_test)
