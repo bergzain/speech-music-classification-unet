@@ -22,8 +22,8 @@ srun -K \
 --container-mounts=/netscratch/$USER:/netscratch/$USER,/ds:/ds:ro,"`pwd`":"`pwd`" \ 
 --container-image=/enroot/nvcr.io_nvidia_pytorch_24.06-py3.sqsh \
 --container-workdir="`pwd`" \
--p A100-PCI \
---mem 128GB \
+-p A100-80GB \
+--mem 80GB \
 --gpus 1 \
 
 # Define the paths to the Python training scripts
