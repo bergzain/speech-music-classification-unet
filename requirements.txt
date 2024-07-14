@@ -4,5 +4,5 @@ numpy==1.24.3
 packaging==23.0
 pandas==1.5.3
 pyyaml==6.0
-torch
+torch == 23.12
 tqdm==4.65.0
