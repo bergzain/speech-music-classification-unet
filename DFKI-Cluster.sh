@@ -8,6 +8,7 @@ srun -K \
 -p A100-PCI \
 --mem 64GB \
 --gpus 1 \
+module load python/3.10.11
 
 pip install -r requirements.txt
 # Define the paths to the Python training scripts
