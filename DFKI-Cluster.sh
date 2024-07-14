@@ -18,6 +18,9 @@ SCRIPTS=(
     "/home/zhazzouri/speech-music-classification-unet/Models/AttentionR2UNet/Code/train.py"
 )
 # Function to clear Python cache
+"""
+Clears the Python cache by recursively removing all "__pycache__" directories in the current working directory.
+"""
 clear_cache() {
     find . -type d -name "__pycache__" -exec rm -r {} +
     echo "Cache cleared."
