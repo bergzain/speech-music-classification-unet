@@ -1,26 +1,26 @@
 #!/bin/bash
 
-# make sure only first task per node installs stuff, others wait
-DONEFILE="/tmp/install_done_${SLURM_JOBID}"
-if [[ $SLURM_LOCALID == 0 ]]; then
+# # make sure only first task per node installs stuff, others wait
+# DONEFILE="/tmp/install_done_${SLURM_JOBID}"
+# if [[ $SLURM_LOCALID == 0 ]]; then
   
-  # put your install commands here:
-    module load python/3.10.11
-    pip install -r requirements.txt
+#   # put your install commands here:
+#     module load python/3.10.11
+#     pip install -r requirements.txt
   
-  # Tell other tasks we are done installing
-  touch "${DONEFILE}"
-else
-  # Wait until packages are installed
-  while [[ ! -f "${DONEFILE}" ]]; do sleep 1; done
-fi
+#   # Tell other tasks we are done installing
+#   touch "${DONEFILE}"
+# else
+#   # Wait until packages are installed
+#   while [[ ! -f "${DONEFILE}" ]]; do sleep 1; done
+# fi
 
 
 srun -K \
 --job-name="speech_music_classification" \
 --gpus=1 \
 --container-mounts=/netscratch/$USER:/netscratch/$USER,/ds:/ds:ro,"`pwd`":"`pwd`" \ 
---container-image=/enroot/nvcr.io_nvidia_pytorch_24.06-py3.sqsh \
+--container-image=/netscratch/zhazzouri/scripts/speech-music-classification-unet.sqsh \
 --container-workdir="`pwd`" \
 -p batch \
 --mem 64GB \

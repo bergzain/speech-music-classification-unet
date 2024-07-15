@@ -1,0 +1,10 @@
+srun \
+  --container-image=$1 \
+  --container-save=$2 \
+  --container-mounts=/ds:/ds,/netscratch/$USER:/netscratch/$USER,"`pwd`":"`pwd`" \
+  --container-workdir="`pwd`" \
+  --mem=40G \
+  --gpus=1 \
+  --cpus-per-task=4 \
+  --partition=RTXA6000 \
+  --pty /bin/bash
