@@ -4,5 +4,8 @@ numpy==1.24.3
 packaging==23.0
 pandas==1.5.3
 pyyaml==6.0
-torch == 23.12
+torch ==2.1.0
+torchvision
+torchaudio==2.1.0
 tqdm==4.65.0
+grad-cam==1.5.2
