@@ -21,19 +21,22 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from cnn_model import R2AttU_Net
 from datapreprocessing import AudioProcessor
-main_path = "/home/zhazzouri/speech-music-classification-unet/"
-data_main_path = "/netscratch/zhazzouri/dataset/"
+
+# main_path = "/home/zhazzouri/speech-music-classification-unet/"
+main_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/"
+# data_main_path = "/netscratch/zhazzouri/dataset/"
+data_main_path = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/"
 
 # set Mlflow tracking uri and  experiment name
 mlflow.set_tracking_uri(main_path+ "/mlflow")
-experiment_name = "AttentionR2UNet_MFCCs_80_features_10_seconds"
+experiment_name = "AttentionR2UNet_MFCCs_80_features_5_seconds"
 mlflow.set_experiment(experiment_name)
 run_name = experiment_name
 
 
 #%%
 # Training parameters
-batch_size = 32
+batch_size = 4
 learning_rate = 1e-3 # 1e-4= 0.0001
 num_epochs = 100
 patience = 10 # for early stopping

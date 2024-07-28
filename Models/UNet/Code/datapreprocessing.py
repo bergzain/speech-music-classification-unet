@@ -24,7 +24,7 @@ import os
 
 
 #%%
-length_in_seconds = 10 # duration in seconds
+length_in_seconds = 5 # duration in seconds
 n_mfcc = 80 # number of MFCCs features
 sample_rate = 44100 # check data_parsing_and_preprocessing.ipynb
 target_sample_rate = 44100  # Define your target sample rate
