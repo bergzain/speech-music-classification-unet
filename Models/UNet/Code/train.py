@@ -24,14 +24,14 @@ from cnn_model import U_Net
 from datapreprocessing import AudioProcessor
 #%%
 
-# main_path = "/home/zhazzouri/speech-music-classification-unet/"
-main_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/"
-# data_main_path = "/netscratch/zhazzouri/dataset/"
-data_main_path = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/"
+main_path = "/home/zhazzouri/speech-music-classification-unet/"
+# main_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/"
+data_main_path = "/netscratch/zhazzouri/dataset/"
+# data_main_path = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/"
 
 # Set MLflow tracking URI and experiment name
 mlflow.set_tracking_uri(main_path+ "/mlflow")
-experiment_name = "UNet_MFCCs_80_features_5_seconds"
+experiment_name = "UNet_MFCCs_32_features_10_seconds"
 mlflow.set_experiment(experiment_name)
 run_name = experiment_name 
 

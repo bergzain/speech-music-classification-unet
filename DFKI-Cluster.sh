@@ -20,7 +20,7 @@ srun -K \
 --job-name="speech_music_classification" \
 --gpus=1 \
 --container-mounts=/netscratch/$USER:/netscratch/$USER,/ds:/ds:ro,"`pwd`":"`pwd`" \ 
---container-image=/netscratch/zhazzouri/scripts/speech-music-classification-unet.sqsh \
+--container-image=/netscratch/zhazzouri/scripts/speech-music-classification.sqsh \
 --container-workdir="`pwd`" \
 -p batch \
 --mem 64GB \
