@@ -29,7 +29,7 @@ data_main_path = "/netscratch/zhazzouri/dataset/"
 
 # set Mlflow tracking uri and  experiment name
 mlflow.set_tracking_uri(main_path+ "/mlflow")
-experiment_name = "AttentionR2UNet_MFCCs_32_features_10_seconds"
+experiment_name = "AttentionR2UNet_MFCCs_80_features_30_seconds"
 mlflow.set_experiment(experiment_name)
 run_name = experiment_name
 
