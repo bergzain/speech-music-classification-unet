@@ -4,7 +4,7 @@ srun -K \
 --job-name="speech_music_classification" \
 --gpus=1 \
 --container-mounts=/netscratch/$USER:/netscratch/$USER,/ds:/ds:ro,"`pwd`":"`pwd`" \
---container-image=/enroot/nvcr.io_nvidia_pytorch_24.07-py3.sqsh \
+--container-image=/netscratch/zhazzouri/scripts/speech-music-classification.sqsh \
 --container-workdir="`pwd`" \
 -p RTXA6000 \
 --mem 64GB \
