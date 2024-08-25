@@ -1,0 +1,6 @@
+artifact_location: /home/zhazzouri/speech-music-classification-unet//mlflow/119682144716302520
+creation_time: 1722262468820
+experiment_id: '119682144716302520'
+last_update_time: 1722262468820
+lifecycle_stage: active
+name: R2UNet_MFCCs_80_features_30_seconds
