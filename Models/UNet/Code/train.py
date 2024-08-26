@@ -16,9 +16,6 @@ import mlflow
 import mlflow.pytorch
 import argparse
 
-from pytorch_grad_cam import GradCAM, ScoreCAM, GradCAMPlusPlus, AblationCAM, XGradCAM, EigenCAM
-from pytorch_grad_cam.utils.image import show_cam_on_image,preprocess_image
-
 
 
 
