@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import mlflow
 import mlflow.pytorch
+import argparse
 
 from pytorch_grad_cam import GradCAM, ScoreCAM, GradCAMPlusPlus, AblationCAM, XGradCAM, EigenCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image,preprocess_image
@@ -20,27 +21,53 @@ from pytorch_grad_cam.utils.image import show_cam_on_image,preprocess_image
 
 
 
-from cnn_model import U_Net
+from models import U_Net,R2U_Net,R2AttU_Net,AttentionUNet
 from datapreprocessing import AudioProcessor
 #%%
 
-main_path = "/home/zhazzouri/speech-music-classification-unet/"
-# main_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/"
-data_main_path = "/netscratch/zhazzouri/dataset/"
-# data_main_path = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/"
 
+
+
+
+
+#%%
+# Parse arguments
+parser = argparse.ArgumentParser(description='Train different versions of UNet models.')
+parser.add_argument('--model', type=str, default='U_Net', choices=['U_Net', 'R2U_Net', 'R2AttU_Net', 'AttentionUNet'], help='Model type to train')
+parser.add_argument('--type_of_transformation',default='MFCC',type=str, required=True, choices=['MFCC', 'LFCC', 'delta', 'delta-delta', 'lfcc-delta', 'lfcc-delta-delta'], help='Type of transformation')
+parser.add_argument('--n_mfcc', type=int, default=13, help='Number of MFCCs to extract')
+parser.add_argument('--length_in_seconds', type=int, default=5, help='Length of audio clips in seconds')
+parser.add_argument('--batch_size', type=int, default=16, help='Batch size for training')
+parser.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate for training')
+parser.add_argument('--num_epochs', type=int, default=2, help='Number of epochs for training')
+parser.add_argument('--patience', type=int, default=10, help='Patience for early stopping')
+parser.add_argument('--path_type', type=str, default='cluster', choices=['cluster', 'local'], help='Path type: cluster or local')
+
+args = parser.parse_args()
+
+
+
+# Set paths based on the path type
+if args.path_type == 'cluster':
+    main_path = "/home/zhazzouri/speech-music-classification-unet/"
+    data_main_path = "/netscratch/zhazzouri/dataset/"
+else:
+    main_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/"
+    data_main_path = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/"
+    
+    
+save_path = main_path + "/results/UNet/MFCCs"
+
+
+#%%
 # Set MLflow tracking URI and experiment name
 mlflow.set_tracking_uri(main_path+ "/mlflow")
-experiment_name = "UNet_MFCCs_80_features_30_seconds"
+# experiment_name = "trying-a-clean-version"
+experiment_name = f"{args.model}_{args.type_of_transformation}_{args.n_mfcc}_len{args.length_in_seconds}S"
+
 mlflow.set_experiment(experiment_name)
 run_name = experiment_name 
 
-# Training parameters
-batch_size = 4
-learning_rate = 1e-3
-num_epochs = 100
-patience = 10
-save_path = main_path + "/results/UNet/MFCCs"
 #%%
 # Set device
 if torch.cuda.is_available():
@@ -56,33 +83,35 @@ print(f"Using {device}")
 path_to_train = data_main_path + "train/"
 path_to_test =  data_main_path + "test/"
 
-train_dataset = AudioProcessor(audio_dir=path_to_train)
-val_dataset = AudioProcessor(audio_dir=path_to_test)
-#%%
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 #%%
+# Create datasets
+train_dataset = AudioProcessor(audio_dir=path_to_train, n_mfcc=args.n_mfcc, length_in_seconds=args.length_in_seconds, type_of_transformation=args.type_of_transformation)
+val_dataset = AudioProcessor(audio_dir=path_to_test, n_mfcc=args.n_mfcc, length_in_seconds=args.length_in_seconds, type_of_transformation=args.type_of_transformation)
 
-model_name = "U_Net"
-model = U_Net().to(device)
+# Create DataLoaders
+train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+
+
+#%%
+models = {
+    "U_Net": U_Net(),
+    "R2U_Net": R2U_Net(),
+    "R2AttU_Net": R2AttU_Net(),
+    "AttentionUNet": AttentionUNet()
+}
+model_name = args.model
+model = models[model_name].to(device)
+
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
 # Initialize the ReduceLROnPlateau scheduler
 scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.01, patience=5, verbose=True)
 #%%
 
-def calculate_sdr(target, prediction):
-    target = target.float()
-    prediction = prediction.float()
 
-    target_energy = torch.sum(target**2)
-    error_signal = target - prediction
-    error_energy = torch.sum(error_signal**2)
-
-    sdr = 10 * torch.log10(target_energy / error_energy)
-    return sdr
 
 def one_hot_encode(labels, num_classes, device):
     return torch.eye(num_classes, device=device)[labels]
@@ -94,24 +123,22 @@ def evaluate(val_loader, model, criterion, device):
     total = 0
     all_targets = []
     all_predictions = []
-    all_sdrs = []
 
     with torch.no_grad():
         for inputs, targets in val_loader:
             inputs = inputs.to(device)
             targets = targets.to(device)
-            targets = one_hot_encode(targets, num_classes=4, device=device).to(device)
+            # targets = one_hot_encode(targets, num_classes=2, device=device).to(device)
 
             outputs = model(inputs)
 
-            all_sdrs.append(calculate_sdr(targets, outputs))
 
             loss = criterion(outputs, targets)
 
             running_loss += loss.item()
 
-            _, predicted = torch.max(outputs.data, 1)
-            _, targets = torch.max(targets, 1)
+            _, predicted = torch.max(outputs.data, 1) # 
+            # _, targets = torch.max(targets, 1)
 
             total += targets.size(0)
             correct += (predicted == targets).sum().item()
@@ -120,7 +147,6 @@ def evaluate(val_loader, model, criterion, device):
             all_predictions.extend(predicted.cpu().numpy())
             
 
-    avg_sdr = sum(all_sdrs) / len(all_sdrs)
 
     avg_loss = running_loss / len(val_loader)
     accuracy = 100 * correct / total
@@ -129,15 +155,19 @@ def evaluate(val_loader, model, criterion, device):
 
     mcc = matthews_corrcoef(all_targets, all_predictions)
 
-    return avg_loss, accuracy, precision, recall, f1_score, mcc, avg_sdr
+    return avg_loss, accuracy, precision, recall, f1_score, mcc
 #%%
 
 with mlflow.start_run(run_name=run_name):
     # Log hyperparameters
-    mlflow.log_param("batch_size", batch_size)
-    mlflow.log_param("learning_rate", learning_rate)
-    mlflow.log_param("num_epochs", num_epochs)
-    mlflow.log_param("patience", patience)
+    mlflow.log_param("batch_size", args.batch_size)
+    mlflow.log_param("learning_rate", args.learning_rate)
+    mlflow.log_param("num_epochs", args.num_epochs)
+    mlflow.log_param("patience", args.patience)
+    mlflow.log_param("model_name", model_name)
+    mlflow.log_param("n_mfcc", args.n_mfcc)
+    mlflow.log_param("length_in_seconds", args.length_in_seconds)
+
     
     
 
@@ -149,14 +179,13 @@ with mlflow.start_run(run_name=run_name):
     val_recalls = []
     val_f1_scores = []
     val_mccs = []
-    val_sdrs = []
     best_epoch = 0
 
     best_val_Accuracy = float('-inf') 
     no_improv_counter = 0
 
-    for epoch in range(num_epochs):
-        print(f"Epoch: {epoch+1}/{num_epochs}")
+    for epoch in range(args.num_epochs):
+        print(f"Epoch: {epoch+1}/{args.num_epochs}")
 
         model.train()
         running_loss = 0.0
@@ -165,8 +194,8 @@ with mlflow.start_run(run_name=run_name):
 
         for i, (inputs, targets) in enumerate(tqdm(train_loader, desc="Training", ncols=100)):
             inputs = inputs.to(device)
-            targets = one_hot_encode(targets, num_classes=4, device=device).to(device)
-
+            # targets = one_hot_encode(targets, num_classes=2, device=device).to(device)
+            targets = targets.to(device)
             optimizer.zero_grad()
 
             outputs = model(inputs)
@@ -180,7 +209,7 @@ with mlflow.start_run(run_name=run_name):
             running_loss += loss.item()
 
             _, predicted = torch.max(outputs.data, 1)
-            _, targets = torch.max(targets, 1)
+            # _, targets = torch.max(targets, 1)
 
             total += targets.size(0)
             correct += (predicted == targets).sum().item()
@@ -190,7 +219,7 @@ with mlflow.start_run(run_name=run_name):
         train_losses.append(epoch_loss)
         train_accuracies.append(epoch_accuracy)
 
-        val_loss, val_accuracy, val_precision, val_recall, val_f1_score, val_mcc, val_sdr = evaluate(val_loader, model, criterion, device)
+        val_loss, val_accuracy, val_precision, val_recall, val_f1_score, val_mcc = evaluate(val_loader, model, criterion, device)
         # Update the learning rate scheduler "learnung rate decay "
         scheduler.step(val_loss)
         
@@ -200,7 +229,6 @@ with mlflow.start_run(run_name=run_name):
         val_recalls.append(val_recall)
         val_f1_scores.append(val_f1_score)
         val_mccs.append(val_mcc)
-        val_sdrs.append(val_sdr)
 
         print(f"Train Loss: {epoch_loss:.4f} | Train Accuracy: {epoch_accuracy:.2f}%")
         print(f"Validation Loss: {val_loss:.4f} | Validation Accuracy: {val_accuracy:.2f}%")
@@ -221,7 +249,6 @@ with mlflow.start_run(run_name=run_name):
         mlflow.log_metric("val_music_f1_score", val_f1_score[0], step=epoch)
         mlflow.log_metric("val_speech_f1_score", val_f1_score[1], step=epoch)
         mlflow.log_metric("val_mcc", val_mcc, step=epoch)
-        mlflow.log_metric("val_sdr", val_sdr.item(), step=epoch)
 
         if val_accuracy > best_val_Accuracy:
             best_val_Accuracy = val_accuracy
@@ -231,8 +258,8 @@ with mlflow.start_run(run_name=run_name):
         else:
             no_improv_counter += 1
 
-        if no_improv_counter >= patience:
-            print(f"No improvement for {patience} epochs, stopping..")
+        if no_improv_counter >= args.patience:
+            print(f"No improvement for {args.patience} epochs, stopping..")
             break
 
     print("Training finished.")
@@ -253,12 +280,16 @@ with mlflow.start_run(run_name=run_name):
         'music_val_f1_scores': [to_numpy(x[0]) for x in val_f1_scores],
         'speech_val_f1_scores': [to_numpy(x[1]) for x in val_f1_scores],
         'val_mccs': [to_numpy(x) for x in val_mccs],
-        'val_sdrs': [to_numpy(x) for x in val_sdrs],
         'best_epoch': to_numpy(best_epoch)
     })
     metrics_df.to_csv(f"{save_path}/{model_name}metrics.csv", index=False)
 
-    model.load_state_dict(torch.load(f'{save_path}/best_model.pth'))
+    # model.load_state_dict(torch.load(f'{save_path}/best_model.pth'))
+    checkpoint = torch.load(f'{save_path}/{model_name}.pth')
+    # model_dict = model.state_dict()
+    # checkpoint = {k: v for k, v in checkpoint.items() if k in model_dict and v.size() == model_dict[k].size()}
+    # model_dict.update(checkpoint)
+    # model.load_state_dict(model_dict)
 
     # Log the best model artifact
     mlflow.pytorch.log_model(model, "model", registered_model_name=model_name)
@@ -338,18 +369,4 @@ with mlflow.start_run(run_name=run_name):
     fig.savefig(f"{save_path}/{model_name}_mcc.png")
     mlflow.log_artifact(f"{save_path}/{model_name}_mcc.png")
 
-    # Plotting SDR
-    if isinstance(val_sdrs[0], torch.Tensor):
-        val_sdrs_np = [sdr.cpu().numpy() for sdr in val_sdrs]
-    else:
-        val_sdrs_np = val_sdrs
-
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(val_sdrs_np, label='Validation')
-    ax.set_title(f'{model_name} Signal-to-Distortion Ratio (SDR)')
-    ax.set_xlabel('Epoch')
-    ax.set_ylabel('SDR')
-    ax.legend()
-    fig.savefig(f"{save_path}/{model_name}_sdr.png")
-    mlflow.log_artifact(f"{save_path}/{model_name}_sdr.png")
 # %%
