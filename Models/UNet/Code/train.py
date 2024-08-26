@@ -1,4 +1,5 @@
 #%%
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -56,7 +57,6 @@ else:
     data_main_path = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/"
     
     
-save_path = main_path + "/results/UNet/MFCCs"
 
 
 #%%
@@ -67,6 +67,12 @@ experiment_name = f"{args.model}_{args.type_of_transformation}_{args.n_mfcc}_len
 
 mlflow.set_experiment(experiment_name)
 run_name = experiment_name 
+
+
+
+# Set save path and create directory if it doesn't exist
+save_path = os.path.join(main_path, "results", experiment_name) # main_path/results/experiment_name_folder/
+os.makedirs(save_path, exist_ok=True)
 
 #%%
 # Set device
