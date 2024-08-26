@@ -62,7 +62,6 @@ else:
 #%%
 # Set MLflow tracking URI and experiment name
 mlflow.set_tracking_uri(main_path+ "/mlflow")
-# experiment_name = "trying-a-clean-version"
 experiment_name = f"{args.model}_{args.type_of_transformation}_{args.n_mfcc}_len{args.length_in_seconds}S"
 
 mlflow.set_experiment(experiment_name)
@@ -260,7 +259,7 @@ with mlflow.start_run(run_name=run_name):
             best_val_Accuracy = val_accuracy
             no_improv_counter = 0
             best_epoch = epoch 
-            torch.save(model.state_dict(), f"{save_path}/{model_name}.pth")
+            torch.save(model.state_dict(), f"{save_path}/{experiment_name}.pth")
         else:
             no_improv_counter += 1
 
@@ -291,7 +290,7 @@ with mlflow.start_run(run_name=run_name):
     metrics_df.to_csv(f"{save_path}/{model_name}metrics.csv", index=False)
 
     # model.load_state_dict(torch.load(f'{save_path}/best_model.pth'))
-    checkpoint = torch.load(f'{save_path}/{model_name}.pth')
+    checkpoint = torch.load(f'{save_path}/{experiment_name}.pth')
     # model_dict = model.state_dict()
     # checkpoint = {k: v for k, v in checkpoint.items() if k in model_dict and v.size() == model_dict[k].size()}
     # model_dict.update(checkpoint)
