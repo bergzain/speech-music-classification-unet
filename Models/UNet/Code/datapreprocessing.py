@@ -24,28 +24,30 @@ import os
 
 
 #%%
-length_in_seconds = 30 # duration in seconds
-n_mfcc = 80 # number of MFCCs features
+# length_in_seconds = 3 # duration in seconds
+# n_mfcc = 32 # number of MFCCs features
 sample_rate = 44100 # check data_parsing_and_preprocessing.ipynb
 target_sample_rate = 44100  # Define your target sample rate
-target_length =  length_in_seconds * sample_rate
 
 
 class AudioProcessor(Dataset):
-    def __init__(self, audio_dir, n_mfcc=n_mfcc,num_samples=target_length):
+    def __init__(self, audio_dir, n_mfcc,length_in_seconds,type_of_transformation):
         self.audio_dir = audio_dir
         self.n_mfcc = n_mfcc
         self.device = self.get_device()
+        target_length =  length_in_seconds * sample_rate
         self.music_waves = []
         self.speech_waves = []
         self.load_audio_files()
         self.target_sample_rate = target_sample_rate
-        self.num_samples = num_samples
+        self.num_samples = target_length
         self.speech_count = 0
         self.music_count = 0
         self.speech_chunk_count = 0
         self.music_chunk_count = 0
         self.audio_files_and_labels = self.load_audio_files_and_labels()
+        self.type_of_transformation = type_of_transformation
+
 
 
 
@@ -65,39 +67,46 @@ class AudioProcessor(Dataset):
 
     def preprocess(self, filepath):
         waveform, _ = torchaudio.load(filepath)
-        # print(f"waveform.shape: {waveform.shape}")
         waveform = self._resample_if_necessary(waveform, sample_rate)  # resample if necessary
-        
-        # print(f"waveform.shape after resampling: {waveform.shape}")
         waveform = self._mix_down_if_necessary(waveform)  # convert stereo to mono
-        # print(f"waveform.shape after downmixing: {waveform.shape}")
         waveform = self._right_pad_if_necessary(waveform)  # pad if necessary
-        # print(f"waveform.shape after padding: {waveform.shape}")
         waveforms = self._cut_if_necessary(waveform)  # cut if necessary
-        # print(f"waveforms.shape after cutting: {waveforms[0].shape}")
-        mfccs = []
+        features = []
         for wf in waveforms:
-            # Compute MFCCs for each waveform chunk
-            mfcc = torchaudio.transforms.MFCC(sample_rate=self.target_sample_rate,
-                                              n_mfcc=self.n_mfcc)(wf)
-            # Reshape mfcc to [1, 32,1120 ]
-            # print(f"mfcc.shape before reshaping: {mfcc.shape}")
-            
-            # mfcc = mfcc[:, :, :1120] 
-            
-            temp  = mfcc.shape[2] / 112
+            if self.type_of_transformation == 'MFCC':
+                feature = torchaudio.transforms.MFCC(sample_rate=self.target_sample_rate, n_mfcc=self.n_mfcc)(wf)
+            elif self.type_of_transformation == 'LFCC':
+                feature = torchaudio.transforms.LFCC(sample_rate=self.target_sample_rate, n_lfcc=self.n_mfcc)(wf)
+            elif self.type_of_transformation == 'delta':
+                feature = torchaudio.transforms.MFCC(sample_rate=self.target_sample_rate, n_mfcc=self.n_mfcc)(wf)
+                feature = torchaudio.functional.compute_deltas(feature)
+            elif self.type_of_transformation == 'delta-delta':
+                feature = torchaudio.transforms.MFCC(sample_rate=self.target_sample_rate, n_mfcc=self.n_mfcc)(wf)
+                delta = torchaudio.functional.compute_deltas(feature)
+                feature = torchaudio.functional.compute_deltas(delta)
+            elif self.type_of_transformation == 'lfcc-delta':
+                feature = torchaudio.transforms.LFCC(sample_rate=self.target_sample_rate, n_lfcc=self.n_mfcc)(wf)
+                feature = torchaudio.functional.compute_deltas(feature)
+            elif self.type_of_transformation == 'lfcc-delta-delta':
+                feature = torchaudio.transforms.LFCC(sample_rate=self.target_sample_rate, n_lfcc=self.n_mfcc)(wf)
+                delta = torchaudio.functional.compute_deltas(feature)
+                feature = torchaudio.functional.compute_deltas(delta)
+            else:
+                raise ValueError(f"Unknown transformation type: {self.type_of_transformation}")
+
+            temp = feature.shape[2] / 112
             temp = round(temp)
             if temp == 0:
                 temp = 1
             temp = temp * 112
-            # print(f"temp: {temp}")
-            if mfcc.shape[2] > temp:
-                mfcc = mfcc[:, :, :temp]
-            elif mfcc.shape[2] < temp :
-                mfcc = torch.nn.functional.pad(mfcc, (0, temp - mfcc.shape[2]))
-            
-            mfccs.append(mfcc)
-        return torch.stack(mfccs)
+            if feature.shape[2] > temp:
+                feature = feature[:, :, :temp]
+            elif feature.shape[2] < temp:
+                feature = torch.nn.functional.pad(feature, (0, temp - feature.shape[2]))
+
+            features.append(feature)
+        return torch.stack(features)
+
 
 
     def load_audio_files_and_labels(self):
