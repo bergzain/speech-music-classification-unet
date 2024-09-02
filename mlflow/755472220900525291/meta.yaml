@@ -1,6 +1,0 @@
-artifact_location: /home/zhazzouri/speech-music-classification-unet//mlflow/755472220900525291
-creation_time: 1724725235949
-experiment_id: '755472220900525291'
-last_update_time: 1724725235949
-lifecycle_stage: active
-name: U_Net_lfcc-delta-delta_32_len30S
