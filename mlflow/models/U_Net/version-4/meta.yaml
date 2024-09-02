@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1724687120681
+current_stage: None
+description: null
+last_updated_timestamp: 1724687120681
+name: U_Net
+run_id: 431b4da78a02486bbba04cb2a3443b97
+run_link: null
+source: /home/zhazzouri/speech-music-classification-unet//mlflow/162334738174097458/431b4da78a02486bbba04cb2a3443b97/artifacts/model
+status: READY
+status_message: null
+storage_location: /home/zhazzouri/speech-music-classification-unet//mlflow/162334738174097458/431b4da78a02486bbba04cb2a3443b97/artifacts/model
+user_id: null
+version: 4

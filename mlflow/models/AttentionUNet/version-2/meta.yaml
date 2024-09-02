@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1724730936930
+current_stage: None
+description: null
+last_updated_timestamp: 1724730936930
+name: AttentionUNet
+run_id: 956452fd08b449ff9f6027d3aa5a466f
+run_link: null
+source: /home/zhazzouri/speech-music-classification-unet//mlflow/204314236838623113/956452fd08b449ff9f6027d3aa5a466f/artifacts/model
+status: READY
+status_message: null
+storage_location: /home/zhazzouri/speech-music-classification-unet//mlflow/204314236838623113/956452fd08b449ff9f6027d3aa5a466f/artifacts/model
+user_id: null
+version: 2

@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1724726188843
+current_stage: None
+description: null
+last_updated_timestamp: 1724726188843
+name: R2AttU_Net
+run_id: 69f0b1fa19f749f995a93a740e949771
+run_link: null
+source: /home/zhazzouri/speech-music-classification-unet//mlflow/992575558790943775/69f0b1fa19f749f995a93a740e949771/artifacts/model
+status: READY
+status_message: null
+storage_location: /home/zhazzouri/speech-music-classification-unet//mlflow/992575558790943775/69f0b1fa19f749f995a93a740e949771/artifacts/model
+user_id: null
+version: 2

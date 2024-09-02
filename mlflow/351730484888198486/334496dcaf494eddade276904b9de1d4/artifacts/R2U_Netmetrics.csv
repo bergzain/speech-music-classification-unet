@@ -1,0 +1,3 @@
+val_losses,val_accuracies,music_val_precisions,speech_val_precisions,music_val_recalls,speech_val_recalls,music_val_f1_scores,speech_val_f1_scores,val_mccs,best_epoch
+0.9538868367671967,50.0,0.5,0.0,1.0,0.0,0.6666666666666666,0.0,0.0,0
+0.9539096355438232,50.0,0.5,0.0,1.0,0.0,0.6666666666666666,0.0,0.0,0

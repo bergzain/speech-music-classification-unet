@@ -1,0 +1,15 @@
+artifact_uri: /home/zhazzouri/speech-music-classification-unet//mlflow/748767098654237839/faa4de3735b943e3b2fe62ef6e295cb9/artifacts
+end_time: 1724726597204
+entry_point_name: ''
+experiment_id: '748767098654237839'
+lifecycle_stage: active
+run_id: faa4de3735b943e3b2fe62ef6e295cb9
+run_name: R2AttU_Net_delta-delta_32_len5S
+run_uuid: faa4de3735b943e3b2fe62ef6e295cb9
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1724726196752
+status: 3
+tags: []
+user_id: zhazzouri

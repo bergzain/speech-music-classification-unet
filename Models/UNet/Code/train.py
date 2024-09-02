@@ -16,17 +16,9 @@ import mlflow
 import mlflow.pytorch
 import argparse
 
-
-
-
 from models import U_Net,R2U_Net,R2AttU_Net,AttentionUNet
 from datapreprocessing import AudioProcessor
 #%%
-
-
-
-
-
 
 #%%
 # Parse arguments
@@ -40,34 +32,30 @@ parser.add_argument('--learning_rate', type=float, default=1e-3, help='Learning 
 parser.add_argument('--num_epochs', type=int, default=2, help='Number of epochs for training')
 parser.add_argument('--patience', type=int, default=10, help='Patience for early stopping')
 parser.add_argument('--path_type', type=str, default='cluster', choices=['cluster', 'local'], help='Path type: cluster or local')
+parser.add_argument('--num_workers', type=int, default=4, help='Number of workers for data loading')  # Added argument for num_workers
 
 args = parser.parse_args()
-
-
 
 # Set paths based on the path type
 if args.path_type == 'cluster':
     main_path = "/home/zhazzouri/speech-music-classification-unet/"
     data_main_path = "/netscratch/zhazzouri/dataset/"
+    experiments_path = "/netscratch/zhazzouri/experiments/" # path to the folder where the mlflow experiments are stored
 else:
     main_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/"
     data_main_path = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/"
+    experiment_path = main_path # path to the folder where the mlflow experiments are stored
     
-    
-
-
 #%%
 # Set MLflow tracking URI and experiment name
-mlflow.set_tracking_uri(main_path+ "/mlflow")
+mlflow.set_tracking_uri(experiments_path+ "/mlflow")
 experiment_name = f"{args.model}_{args.type_of_transformation}_{args.n_mfcc}_len{args.length_in_seconds}S"
 
 mlflow.set_experiment(experiment_name)
 run_name = experiment_name 
 
-
-
 # Set save path and create directory if it doesn't exist
-save_path = os.path.join(main_path, "results", experiment_name) # main_path/results/experiment_name_folder/
+save_path = os.path.join(experiments_path, "results", experiment_name) # main_path/results/experiment_name_folder/
 os.makedirs(save_path, exist_ok=True)
 
 #%%
@@ -85,16 +73,14 @@ print(f"Using {device}")
 path_to_train = data_main_path + "train/"
 path_to_test =  data_main_path + "test/"
 
-
 #%%
 # Create datasets
 train_dataset = AudioProcessor(audio_dir=path_to_train, n_mfcc=args.n_mfcc, length_in_seconds=args.length_in_seconds, type_of_transformation=args.type_of_transformation)
 val_dataset = AudioProcessor(audio_dir=path_to_test, n_mfcc=args.n_mfcc, length_in_seconds=args.length_in_seconds, type_of_transformation=args.type_of_transformation)
 
 # Create DataLoaders
-train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
-
+train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers) 
 
 #%%
 models = {
@@ -112,8 +98,6 @@ optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 # Initialize the ReduceLROnPlateau scheduler
 scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.01, patience=5, verbose=True)
 #%%
-
-
 
 def one_hot_encode(labels, num_classes, device):
     return torch.eye(num_classes, device=device)[labels]
