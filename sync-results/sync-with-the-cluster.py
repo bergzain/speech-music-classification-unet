@@ -15,8 +15,8 @@ ssh_user = os.getenv('SSH_USER')
 ssh_password = os.getenv('SSH_PASSWORD')
 
 # Directories
-remote_results_dir = '/home/zhazzouri/speech-music-classification-unet/results/'
-local_results_dir = '/Users/zainhazzouri/projects/Bachelor_Thesis/results/'
+remote_results_dir = '/netscratch/zhazzouri/experiments/'
+local_results_dir = '/Users/zainhazzouri/projects/Master-thesis-experiments/'
 
 def sync_folders():
     """
@@ -56,7 +56,7 @@ def sync_folders():
 
     try:
         # Use rsync to synchronize folders, remove source files, and capture the output
-        rsync_command = f'rsync -avz --checksum --remove-source-files --progress -e "sshpass -p {ssh_password} ssh -o StrictHostKeyChecking=no" {ssh_user}@{ssh_host}:{remote_results_dir}/ {local_results_dir}/'
+        rsync_command = f'rsync -avz --checksum --progress -e "sshpass -p {ssh_password} ssh -o StrictHostKeyChecking=no" {ssh_user}@{ssh_host}:{remote_results_dir}/ {local_results_dir}/'
         process = subprocess.Popen(rsync_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         
         # Initialize progress bar

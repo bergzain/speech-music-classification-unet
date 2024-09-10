@@ -31,7 +31,8 @@ def get_run_name(run_path):
     return None
 
 def main():
-    mlflow_dir = 'mlflow'
+    # mlflow_dir = 'mlflow' # 
+    mlflow_dir = "/Users/zainhazzouri/projects/Master-thesis-experiments/mlflow/"
     runs = []
 
     for root, dirs, files in os.walk(mlflow_dir):
