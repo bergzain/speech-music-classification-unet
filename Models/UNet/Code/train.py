@@ -44,7 +44,7 @@ if args.path_type == 'cluster':
 else:
     main_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/"
     data_main_path = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/"
-    experiment_path = main_path # path to the folder where the mlflow experiments are stored
+    experiment_path = "/Users/zainhazzouri/projects/Master-thesis-experiments/" # path to the folder where the mlflow experiments are stored
     
 #%%
 # Set MLflow tracking URI and experiment name
@@ -66,7 +66,6 @@ elif torch.backends.mps.is_built():
     device = "mps"
 else:
     device = "cpu"
-# device = "cpu"
 
 print(f"Using {device}")
 #%%

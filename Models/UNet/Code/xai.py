@@ -8,17 +8,28 @@ import numpy as np
 import librosa
 import librosa.display
 import random
-from pytorch_grad_cam import GradCAM, HiResCAM, GradCAMElementWise, GradCAMPlusPlus, XGradCAM, AblationCAM, ScoreCAM, LayerCAM, FullGrad, EigenCAM, EigenGradCAM, DeepFeatureFactorizations
+from pytorch_grad_cam import GradCAM, HiResCAM, GradCAMElementWise, GradCAMPlusPlus, XGradCAM, AblationCAM, ScoreCAM, LayerCAM, FullGrad, EigenCAM, EigenGradCAM
 from scipy.ndimage import zoom
 
 from datapreprocessing import AudioProcessor
 from models import U_Net, R2U_Net, R2AttU_Net, AttentionUNet
 
+
+# Set device
+if torch.cuda.is_available():
+    device = "cuda"
+elif torch.backends.mps.is_built():
+    device = "mps"
+else:
+    device = "cpu"
+print(f"Using {device}")
+
+
 # Parse arguments
 parser = argparse.ArgumentParser(description='Generate Grad-CAM visualizations for different UNet models.')
 parser.add_argument('--model', type=str, default='U_Net', choices=['U_Net', 'R2U_Net', 'R2AttU_Net', 'AttentionUNet'], help='Model type to use')
 parser.add_argument('--type_of_transformation', default='MFCC', type=str, required=True, choices=['MFCC', 'LFCC', 'delta', 'delta-delta', 'lfcc-delta', 'lfcc-delta-delta'], help='Type of transformation')
-parser.add_argument('--n_mfcc', type=int, default=13, help='Number of MFCCs to extract')
+parser.add_argument('--n_mfcc', type=int, default=32, help='Number of MFCCs to extract')
 parser.add_argument('--length_in_seconds', type=int, default=5, help='Length of audio clips in seconds')
 parser.add_argument('--batch_size', type=int, default=16, help='Batch size for data loading')
 parser.add_argument('--path_type', type=str, default='cluster', choices=['cluster', 'local'], help='Path type: cluster or local')
@@ -31,29 +42,25 @@ np.random.seed(args.random_seed)
 torch.manual_seed(args.random_seed)
 
 target_sample_rate = 44100
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(args.random_seed)
+
 
 # Set paths based on the path type
 if args.path_type == 'cluster':
     main_path = "/home/zhazzouri/speech-music-classification-unet/"
     data_main_path = "/netscratch/zhazzouri/dataset/"
+    experiments_path = "/netscratch/zhazzouri/experiments/" # path to the folder where the mlflow experiments are stored
 else:
     main_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/"
     data_main_path = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/"
+    experiments_path = "/Users/zainhazzouri/projects/Master-thesis-experiments/" # path to the folder where the mlflow experiments are stored
 
-save_path = os.path.join(main_path, "results", f"{args.model}_{args.type_of_transformation}_{args.n_mfcc}_len{args.length_in_seconds}S")
+experiment_name = f"{args.model}_{args.type_of_transformation}_{args.n_mfcc}_len{args.length_in_seconds}S"
+
+save_path = os.path.join(experiments_path, "results", experiment_name) # main_path/results/experiment_name_folder/
 os.makedirs(save_path, exist_ok=True)
 
-# Set device
-if torch.cuda.is_available():
-    device = "cuda"
-elif torch.backends.mps.is_built():
-    device = "mps"
-else:
-    device = "cpu"
 
-print(f"Using {device}")
+
 
 path_to_test = os.path.join(data_main_path, "test/")
 
@@ -72,7 +79,7 @@ model_name = args.model
 model = models[model_name].to(device)
 
 # Load the best model
-model.load_state_dict(torch.load(f'{save_path}/{args.model}_{args.type_of_transformation}_{args.n_mfcc}_len{args.length_in_seconds}S.pth'), strict=False)
+model.load_state_dict(torch.load(f'{save_path}/{args.model}_{args.type_of_transformation}_{args.n_mfcc}_len{args.length_in_seconds}S.pth', map_location=device), strict=False)
 
 # Generate the Grad-CAM visualization
 cam_techniques = [
@@ -86,8 +93,7 @@ cam_techniques = [
     "LayerCAM",
     "FullGrad",
     "EigenCAM",
-    "EigenGradCAM",
-    "DeepFeatureFactorizations"
+    "EigenGradCAM"
 ]
 
 # Grad-CAM Application Function with Normalization and Smoothing
@@ -104,7 +110,6 @@ def apply_cam_technique(cam_technique, model, target_layers, input_tensor):
         "FullGrad": FullGrad,
         "EigenCAM": EigenCAM,
         "EigenGradCAM": EigenGradCAM,
-        "DeepFeatureFactorizations": DeepFeatureFactorizations
     }
     cam = cam_dict[cam_technique](model=model, target_layers=target_layers)
     grayscale_cam = cam(input_tensor=input_tensor)
