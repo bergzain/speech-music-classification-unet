@@ -8,7 +8,13 @@ import numpy as np
 import librosa
 import librosa.display
 import random
-from pytorch_grad_cam import GradCAM, HiResCAM, GradCAMElementWise, GradCAMPlusPlus, XGradCAM, AblationCAM, ScoreCAM, LayerCAM, FullGrad, EigenCAM, EigenGradCAM
+try:
+    from pytorch_grad_cam import GradCAM, HiResCAM, GradCAMElementWise, GradCAMPlusPlus, XGradCAM, AblationCAM, ScoreCAM, LayerCAM, FullGrad, EigenCAM, EigenGradCAM
+except AttributeError as e:
+    print(f"AttributeError: {e}")
+except ImportError as e:
+    print(f"ImportError: {e}")
+    
 from scipy.ndimage import zoom
 
 from datapreprocessing import AudioProcessor
