@@ -112,12 +112,11 @@ def main():
     if args.path_type == 'cluster':
         main_path = "/home/zhazzouri/speech-music-classification-unet/"
         data_main_path = "/netscratch/zhazzouri/dataset/"
-        experiments_path = "/netscratch/zhazzouri/experiments/" # path to the folder where the mlflow experiments are stored
+        experiments_path = "/netscratch/zhazzouri/experiments/"  # Path to the folder where the mlflow experiments are stored
     else:
         main_path = "/Users/zainhazzouri/projects/Bachelor_Thesis/"
         data_main_path = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/"
-        experiment_path = "/Users/zainhazzouri/projects/Master-thesis-experiments/" # path to the folder where the mlflow experiments are stored
-    
+        experiments_path = "/Users/zainhazzouri/projects/Master-thesis-experiments/"  # Path to the folder where the mlflow experiments are stored
 
     # If audio_dir is not provided, use default path
     if args.audio_dir == '':
@@ -151,9 +150,9 @@ def main():
             metrics = load_metrics(metrics_path)
             run_name = tags.get('mlflow.runName', dir_name)
 
-            # **Check if Best Accuracy == 0 or Loss == inf**
+            # Check if Best Accuracy == 0 or Loss == inf
             best_accuracy = metrics.get('best_accuracy', None)
-            loss = metrics.get('loss', None)  # Assuming 'loss' is the metric name
+            loss = metrics.get('loss', None)  # Adjust metric name if needed
 
             if best_accuracy is None or loss is None:
                 print(f"Metrics not found for run {run_name}, skipping...")
@@ -163,7 +162,7 @@ def main():
                 print(f"Best Accuracy is 0 or Loss is infinite for run {run_name}, skipping...")
                 continue
 
-            # **Check if Grad-CAM outputs already exist**
+            # Check if Grad-CAM outputs already exist
             save_dir = os.path.join(artifacts_path, 'gradcam_outputs')
             combined_save_filename = f'{run_name}_All_CAMs_sample_{args.sample_idx}.png'
             combined_save_path = os.path.join(save_dir, combined_save_filename)
