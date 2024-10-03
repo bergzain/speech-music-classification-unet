@@ -13,19 +13,10 @@ import os
 
 #%% 
 
-##### expermintal code 
-# waveform, sampleRate = torchaudio.load("/Users/zainhazzouri/projects/Raw_Data/GTZAN/music_wav/bagpipe.wav")
-# print("waveform.shape:", waveform.shape)
-# print("sampleRate:",sampleRate)
-# mfcc = torchaudio.transforms.MFCC(sample_rate=sampleRate, n_mfcc=80)(waveform)
-# print("mfcc.shape:", mfcc.shape)
-
 
 
 
 #%%
-# length_in_seconds = 3 # duration in seconds
-# n_mfcc = 32 # number of MFCCs features
 sample_rate = 44100 # check data_parsing_and_preprocessing.ipynb
 target_sample_rate = 44100  # Define your target sample rate
 
