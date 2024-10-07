@@ -1,4 +1,3 @@
-# xai_playground.py
 import torch
 from pytorch_grad_cam import (
     GradCAM, HiResCAM, GradCAMElementWise, GradCAMPlusPlus, XGradCAM, AblationCAM,
@@ -134,43 +133,99 @@ def load_tags(tags_path):
     return tags
 
 def load_metrics(metrics_path):
-    """Load metrics from the MLflow run."""
+    """Load metrics from the MLflow run with robust parsing."""
     metrics = {}
     try:
+        if not os.path.exists(metrics_path):
+            print(f"[WARNING] Metrics path does not exist: {metrics_path}")
+            return metrics
+        
         for metric_file in os.listdir(metrics_path):
             metric_name = metric_file
-            with open(os.path.join(metrics_path, metric_file), 'r') as f:
+            metric_file_path = os.path.join(metrics_path, metric_file)
+            print(f"[DEBUG] Loading metric file: {metric_file_path}")
+            
+            with open(metric_file_path, 'r') as f:
                 lines = f.readlines()
-                if lines:
-                    # Each line is in the format: timestamp value step
-                    # We take the last line (latest value)
-                    last_line = lines[-1]
+                
+                if not lines:
+                    print(f"[WARNING] Metric file '{metric_file}' is empty.")
+                    continue  # Skip empty metric files
+                
+                last_line = lines[-1].strip()
+                print(f"[DEBUG] Last line in '{metric_file}': '{last_line}'")
+                
+                # Initialize value as None
+                value = None
+                
+                # Strategy 1: Split by space
+                parts = last_line.split(' ')
+                if len(parts) >= 2:
                     try:
-                        timestamp, value, step = last_line.strip().split(' ')
-                        value = float(value)
-                        metrics[metric_name] = value
+                        value = float(parts[1])
+                        print(f"[DEBUG] Parsed '{metric_name}' using space separator: {value}")
                     except ValueError:
-                        print(f"[WARNING] Unexpected format in metric file '{metric_file}'. Skipping line.")
-        print(f"[INFO] Loaded metrics from {metrics_path}")
+                        print(f"[WARNING] Unable to parse value using space separator in '{metric_file}'. Trying next strategy.")
+                
+                # Strategy 2: Split by comma
+                if value is None and ',' in last_line:
+                    parts = last_line.split(',')
+                    if len(parts) >= 2:
+                        try:
+                            value = float(parts[1])
+                            print(f"[DEBUG] Parsed '{metric_name}' using comma separator: {value}")
+                        except ValueError:
+                            print(f"[WARNING] Unable to parse value using comma separator in '{metric_file}'. Trying next strategy.")
+                
+                # Strategy 3: Single value per line
+                if value is None:
+                    try:
+                        value = float(last_line)
+                        print(f"[DEBUG] Parsed '{metric_name}' as single float value: {value}")
+                    except ValueError:
+                        print(f"[WARNING] Unable to parse value as single float in '{metric_file}'. Trying next strategy.")
+                
+                # Strategy 4: Extract float from last part
+                if value is None:
+                    parts = last_line.split()
+                    for part in reversed(parts):
+                        try:
+                            value = float(part)
+                            print(f"[DEBUG] Parsed '{metric_name}' by extracting float from '{part}': {value}")
+                            break
+                        except ValueError:
+                            continue
+                    if value is None:
+                        print(f"[WARNING] Could not parse any float value in '{metric_file}'. Skipping this metric.")
+                
+                if value is not None:
+                    metrics[metric_name] = value
+                else:
+                    print(f"[WARNING] Failed to parse '{metric_name}' from '{metric_file}'.")
+        
+        print(f"[INFO] Loaded metrics from {metrics_path}: {metrics}")
+    
     except Exception as e:
         print(f"[ERROR] Failed to load metrics from {metrics_path}: {e}")
+    
     return metrics
 
-def plot_cam_side_by_side_with_librosa(original, cam_images, titles, save_path, sample_type, run_name, target_sample_rate=44100):
+def plot_cam_side_by_side_with_librosa(original, cam_images, titles, save_path, sample_type, run_name, transformation_type, target_sample_rate=44100):
     """
-    Plot the original MFCC alongside CAM overlays using librosa for audio visualization.
+    Plot the original MFCC (or other transformation) alongside CAM overlays using librosa for audio visualization.
 
     Parameters:
-    - original (np.ndarray): Original MFCC array.
+    - original (np.ndarray): Original MFCC (or other transformation) array.
     - cam_images (list of np.ndarray): List of CAM arrays.
     - titles (list of str): Titles for each CAM method.
     - save_path (str): Directory to save the plot.
     - sample_type (str): Type of the sample ('music' or 'speech').
     - run_name (str): Name of the run for naming individual CAM images.
+    - transformation_type (str): Type of transformation applied (e.g., 'MFCC', 'LFCC', etc.).
     - target_sample_rate (int): Sampling rate for librosa display.
     """
     try:
-        print(f"[INFO] Plotting CAMs for sample type: {sample_type}")
+        print(f"[INFO] Plotting CAMs for sample type: {sample_type} with transformation: {transformation_type}")
         num_cam_techniques = len(cam_images)
         
         # Define separate directories for individual and combined images
@@ -185,24 +240,24 @@ def plot_cam_side_by_side_with_librosa(original, cam_images, titles, save_path, 
         # Reshape the original data
         original = original.squeeze()
 
-        # Plot original MFCC using librosa on the far left
+        # Plot original transformation using librosa on the far left
         img = librosa.display.specshow(original, sr=target_sample_rate, x_axis='time', ax=axes_combined[0], cmap='magma')
         fig_combined.colorbar(img, ax=axes_combined[0], format="%+2.f dB")
-        axes_combined[0].set_title(f"Original MFCC ({sample_type})")
+        axes_combined[0].set_title(f"Original {transformation_type} ({sample_type})")
 
         # Iterate over each CAM method and save individually
         for i, (cam_image, title) in enumerate(zip(cam_images, titles), start=1):
             # Normalize CAM image
             cam_image = (cam_image - np.min(cam_image)) / (np.max(cam_image) - np.min(cam_image))
             cam_image = np.clip(cam_image, 0, 1)
-            # Resize the CAM image to match the original MFCC dimensions using zoom
+            # Resize the CAM image to match the original transformation dimensions using zoom
             zoom_factors = (original.shape[0] / cam_image.shape[0], original.shape[1] / cam_image.shape[1])
             cam_image_resized = zoom(cam_image, zoom_factors)
 
-            # Plot MFCC with GradCAM overlay on the combined figure
+            # Plot transformation with CAM overlay on the combined figure
             axes_combined[i].imshow(original, cmap='magma', aspect='auto', origin='lower')
             axes_combined[i].imshow(cam_image_resized, cmap='jet', alpha=0.5, aspect='auto', origin='lower')
-            # To ensure the colorbar corresponds to the MFCC
+            # To ensure the colorbar corresponds to the transformation
             img_cam = axes_combined[i].images[0]
             fig_combined.colorbar(img_cam, ax=axes_combined[i], format="%+2.f dB")
             axes_combined[i].set_title(f"{title} CAM ({sample_type})")
@@ -298,11 +353,10 @@ def main():
     # Iterate over MLflow runs (two levels deep)
     for root, dirs, files in os.walk(mlflow_dir):
         for dir_name in dirs:
-            # Construct the first level run path
             first_level_run_path = os.path.join(root, dir_name)
-            # Now, iterate over the second level directories
             try:
                 second_level_dirs = os.listdir(first_level_run_path)
+                print(f"[DEBUG] Found second-level directories: {second_level_dirs} in {first_level_run_path}")
             except Exception as e:
                 print(f"[ERROR] Unable to list directories in {first_level_run_path}: {e}")
                 continue
@@ -358,25 +412,24 @@ def main():
 
                 # Load metrics if available
                 try:
-                    metrics = {}
-                    if os.path.exists(metrics_path):
-                        metrics = load_metrics(metrics_path)
-                        print(f"[INFO] Loaded metrics for run {run_name}.")
-                    else:
-                        print(f"[WARNING] Metrics path does not exist for run {run_name}. Proceeding without metrics check.")
-
-                    val_accuracy = metrics.get('val_accuracy', None)
-                    val_loss = metrics.get('val_loss', None)
-
-                    if val_accuracy is not None and val_loss is not None:
-                        if val_accuracy == 0 or math.isinf(val_loss):
-                            print(f"[WARNING] Validation Accuracy is 0 or Validation Loss is infinite for run {run_name}. Skipping...")
-                            continue
-                    else:
-                        print(f"[INFO] Validation metrics not found for run {run_name}. Proceeding without metrics check.")
+                    metrics = load_metrics(metrics_path)
+                    print(f"[INFO] Loaded metrics for run {run_name}: {metrics}")
                 except Exception as e:
                     print(f"[ERROR] Failed to load metrics for run {run_name}: {e}. Skipping...")
                     continue
+
+                val_accuracy = metrics.get('val_accuracy', None)
+                val_loss = metrics.get('val_loss', None)
+
+                if val_accuracy is not None and val_loss is not None:
+                    if val_accuracy == 0 or math.isinf(val_loss):
+                        print(f"[WARNING] Validation Accuracy is 0 or Validation Loss is infinite for run {run_name}. Skipping...")
+                        continue
+                else:
+                    print(f"[WARNING] Validation metrics not found for run {run_name}. Proceeding without metrics check.")
+                    # Decide whether to skip or proceed
+                    # For example, to skip runs without metrics:
+                    # continue
 
                 # Update dataset transforms based on parameters
                 try:
@@ -489,7 +542,8 @@ def main():
                             titles=cam_titles,
                             save_path=save_dir,
                             sample_type=sample_type,
-                            run_name=run_name
+                            run_name=run_name,
+                            transformation_type=type_of_transformation  # Pass the transformation type
                         )
 
                     except Exception as e:
