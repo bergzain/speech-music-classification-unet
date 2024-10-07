@@ -233,6 +233,123 @@ def plot_ball_chart(df: pd.DataFrame, output_dir: Path):
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     logging.info(f"Bubble chart saved to {plot_path}")
     plt.show()
+    
+    
+def plot_best_performing_models(df: pd.DataFrame, output_dir: Path):
+    """
+    Plot the best performing models by accuracy.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data.
+    - output_dir (Path): The directory to save the plot.
+    """
+    top_models = df.nlargest(5, 'Best Accuracy')
+
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x='Run Name', y='Best Accuracy', data=top_models)
+    plt.title('Top 5 Best Performing Models by Accuracy')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+
+    # Save the plot
+    plot_path = output_dir / 'best_performing_models.png'
+    plt.savefig(plot_path, dpi=300)
+    plt.show()
+
+def plot_effect_of_features(df: pd.DataFrame, output_dir: Path):
+    """
+    Plot the effect of different features on accuracy.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data.
+    - output_dir (Path): The directory to save the plot.
+    """
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(x='Transformation Type', y='Best Accuracy', data=df)
+    plt.title('Effect of Different Features on Accuracy')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+
+    # Save the plot
+    plot_path = output_dir / 'effect_of_features.png'
+    plt.savefig(plot_path, dpi=300)
+    plt.show()
+
+def plot_effect_of_chunk_length(df: pd.DataFrame, output_dir: Path):
+    """
+    Plot the effect of chunk length on model performance.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data.
+    - output_dir (Path): The directory to save the plot.
+    """
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(x='Length of Chunks (s)', y='Best Accuracy', data=df)
+    plt.title('Effect of Chunk Length on Accuracy')
+    plt.tight_layout()
+
+    # Save the plot
+    plot_path = output_dir / 'effect_of_chunk_length.png'
+    plt.savefig(plot_path, dpi=300)
+    plt.show()
+
+def plot_number_of_features_vs_performance(df: pd.DataFrame, output_dir: Path):
+    """
+    Plot the relationship between number of features and performance.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data.
+    - output_dir (Path): The directory to save the plot.
+    """
+    plt.figure(figsize=(10, 6))
+    sns.scatterplot(x='Number of Features', y='Best Accuracy', hue='Transformation Type', style='Model Name', s=100, data=df)
+    plt.title('Number of Features vs. Accuracy')
+    plt.tight_layout()
+
+    # Save the plot
+    plot_path = output_dir / 'number_of_features_vs_performance.png'
+    plt.savefig(plot_path, dpi=300)
+    plt.show()
+
+def plot_model_architecture_comparison(df: pd.DataFrame, output_dir: Path):
+    """
+    Plot comparison of model architectures by performance.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data.
+    - output_dir (Path): The directory to save the plot.
+    """
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(x='Model Name', y='Best Accuracy', data=df)
+    plt.title('Comparison of Model Architectures')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+
+    # Save the plot
+    plot_path = output_dir / 'model_architecture_comparison.png'
+    plt.savefig(plot_path, dpi=300)
+    plt.show()
+
+def plot_effect_of_delta_and_delta_delta(df: pd.DataFrame, output_dir: Path):
+    """
+    Plot the effect of delta and delta-delta features on model performance.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data.
+    - output_dir (Path): The directory to save the plot.
+    """
+    delta_df = df[df['Transformation Type'].str.contains('delta')]
+
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(x='Transformation Type', y='Best Accuracy', data=delta_df)
+    plt.title('Effect of Delta and Delta-Delta Features on Accuracy')
+    plt.tight_layout()
+
+    # Save the plot
+    plot_path = output_dir / 'effect_of_delta_and_delta_delta.png'
+    plt.savefig(plot_path, dpi=300)
+    plt.show()
+
 
 def main():
     """
@@ -305,6 +422,16 @@ def main():
 
     # Plot the ball chart
     plot_ball_chart(df, output_dir)
+    
+    
+    # Generate plots for findings
+    plot_best_performing_models(df, output_dir)
+    plot_effect_of_features(df, output_dir)
+    plot_effect_of_chunk_length(df, output_dir)
+    plot_number_of_features_vs_performance(df, output_dir)
+    plot_model_architecture_comparison(df, output_dir)
+    plot_effect_of_delta_and_delta_delta(df, output_dir)
+
 
 if __name__ == "__main__":
     main()

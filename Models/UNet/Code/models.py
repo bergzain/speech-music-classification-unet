@@ -479,7 +479,7 @@ class U_Net(nn.Module):
 
 def test_models():
     batch_size = 1
-    dummy_input = torch.rand(batch_size, 1, 32, 112)  # Adjust the input dimensions as needed
+    dummy_input = torch.rand(batch_size, 1, 80, 112)  # Adjust the input dimensions as needed
 
     models = {
         "U_Net": U_Net(),
