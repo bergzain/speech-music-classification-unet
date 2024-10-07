@@ -65,13 +65,13 @@ def get_cam_methods():
         'HiResCAM': HiResCAM,
         'GradCAMElementWise': GradCAMElementWise,
         'GradCAMPlusPlus': GradCAMPlusPlus,
-        'XGradCAM': XGradCAM
-        # 'AblationCAM': AblationCAM,
-        # 'ScoreCAM': ScoreCAM,
-        # 'LayerCAM': LayerCAM,
-        # 'FullGrad': FullGrad,
-        # 'EigenCAM': EigenCAM,
-        # 'EigenGradCAM': EigenGradCAM
+        'XGradCAM': XGradCAM,
+        'AblationCAM': AblationCAM,
+        'ScoreCAM': ScoreCAM,
+        'LayerCAM': LayerCAM,
+        'FullGrad': FullGrad,
+        'EigenCAM': EigenCAM,
+        'EigenGradCAM': EigenGradCAM
     }
     return methods
 
