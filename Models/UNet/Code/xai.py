@@ -72,6 +72,7 @@ def get_cam_methods():
         'EigenCAM': EigenCAM,
         'EigenGradCAM': EigenGradCAM
     }
+    print(f"[DEBUG] Available CAM methods: {list(methods.keys())}")
     return methods
 
 def parse_run_name(run_name):
