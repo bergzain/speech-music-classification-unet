@@ -26,7 +26,7 @@ parser = argparse.ArgumentParser(description='Train different versions of UNet m
 parser.add_argument('--model', type=str, default='U_Net', choices=['U_Net', 'R2U_Net', 'R2AttU_Net', 'AttentionUNet'], help='Model type to train')
 parser.add_argument('--type_of_transformation',default='MFCC',type=str, required=True, choices=['MFCC', 'LFCC', 'delta', 'delta-delta', 'lfcc-delta', 'lfcc-delta-delta'], help='Type of transformation')
 parser.add_argument('--n_mfcc', type=int, default=13, help='Number of MFCCs to extract')
-parser.add_argument('--length_in_seconds', type=int, default=5, help='Length of audio clips in seconds')
+parser.add_argument('--length_in_seconds', type=float, default=5, help='Length of audio clips in seconds')
 parser.add_argument('--batch_size', type=int, default=16, help='Batch size for training')
 parser.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate for training')
 parser.add_argument('--num_epochs', type=int, default=2, help='Number of epochs for training')
