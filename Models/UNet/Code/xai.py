@@ -81,9 +81,9 @@ def get_cam_methods():
         'AblationCAM': AblationCAM,
         'ScoreCAM': ScoreCAM,
         'LayerCAM': LayerCAM,
-        'FullGrad': FullGrad,
-        'EigenCAM': EigenCAM,
-        'EigenGradCAM': EigenGradCAM
+        'FullGrad': FullGrad
+        # 'EigenCAM': EigenCAM,
+        # 'EigenGradCAM': EigenGradCAM
     }
     logger.debug(f"Available CAM methods: {list(methods.keys())}")
     return methods
