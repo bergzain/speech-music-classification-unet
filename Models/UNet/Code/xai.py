@@ -441,6 +441,8 @@ def process_run(run_path, device, save_global_path, transformation_type, run_nam
     - length_in_seconds (int): Length of audio in seconds.
     - audio_dir (str): Path to the test data directory.
     """
+    model = None
+    test_dataset = None
     try:
         artifacts_path = os.path.join(run_path, 'artifacts')
         if not os.path.exists(artifacts_path):
@@ -539,8 +541,10 @@ def process_run(run_path, device, save_global_path, transformation_type, run_nam
     finally:
         # Clear CUDA cache and collect garbage
         torch.cuda.empty_cache()
-        del model
-        del test_dataset
+        if model is not None:
+            del model
+        if test_dataset is not None:
+            del test_dataset
         gc.collect()
 
 
