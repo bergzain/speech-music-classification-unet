@@ -8,7 +8,11 @@ from openpyxl.styles import PatternFill, Font
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.lines import Line2D
-import os, re
+import os
+import re
+from matplotlib.patches import Patch
+from brokenaxes import brokenaxes 
+from sklearn.utils import resample
 
 def setup_logging():
     """Set up logging configuration."""
@@ -71,7 +75,7 @@ def get_run_name(run_path: Path) -> Optional[str]:
         logging.error(f"Failed to read run name from {run_path}: {e}")
     return None
 
-def parse_run_name(run_name: str) -> Optional[Tuple[str, str, int, int]]:
+def parse_run_name(run_name: str) -> Optional[Tuple[str, str, int, float]]:
     """
     Parse the run name to extract model details.
 
@@ -79,14 +83,14 @@ def parse_run_name(run_name: str) -> Optional[Tuple[str, str, int, int]]:
     - run_name (str): The run name string.
 
     Returns:
-    - Optional[Tuple[str, str, int, int]]: Parsed model name, transformation type,
+    - Optional[Tuple[str, str, int, float]]: Parsed model name, transformation type,
       number of features, and length in seconds. Returns None if parsing fails.
     """
-    pattern = r'([A-Za-z0-9_]+)_([A-Za-z\-]+)_([0-9]+)_len([0-9]+)S'
+    pattern = r'([A-Za-z0-9_]+)_([A-Za-z\-]+)_([0-9]+)_len([0-9]*\.?[0-9]+)S'
     match = re.match(pattern, run_name)
     if match:
         model_name, transformation_type, num_features, length_in_seconds = match.groups()
-        return model_name, transformation_type, int(num_features), int(length_in_seconds)
+        return model_name, transformation_type, int(num_features), float(length_in_seconds)
     else:
         logging.warning(f"Run name does not match expected format: {run_name}")
         return None
@@ -232,9 +236,8 @@ def plot_ball_chart(df: pd.DataFrame, output_dir: Path):
     plot_path = output_dir / 'model_performance_ball_chart.png'
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     logging.info(f"Bubble chart saved to {plot_path}")
-    plt.show()
-    
-    
+    plt.close()
+
 def plot_best_performing_models(df: pd.DataFrame, output_dir: Path):
     """
     Plot the best performing models by accuracy.
@@ -254,7 +257,8 @@ def plot_best_performing_models(df: pd.DataFrame, output_dir: Path):
     # Save the plot
     plot_path = output_dir / 'best_performing_models.png'
     plt.savefig(plot_path, dpi=300)
-    plt.show()
+    plt.close()
+    logging.info(f"Best performing models plot saved to {plot_path}")
 
 def plot_effect_of_features(df: pd.DataFrame, output_dir: Path):
     """
@@ -273,25 +277,41 @@ def plot_effect_of_features(df: pd.DataFrame, output_dir: Path):
     # Save the plot
     plot_path = output_dir / 'effect_of_features.png'
     plt.savefig(plot_path, dpi=300)
-    plt.show()
+    plt.close()
+    logging.info(f"Effect of features plot saved to {plot_path}")
 
-def plot_effect_of_chunk_length(df: pd.DataFrame, output_dir: Path):
+def plot_effect_of_chunk_length(df: pd.DataFrame, output_dir: Path, model_name: str = "U_Net"):
     """
-    Plot the effect of chunk length on model performance.
+    Plot the effect of chunk length on model performance for a specific model.
 
     Parameters:
     - df (pd.DataFrame): The DataFrame containing the data.
     - output_dir (Path): The directory to save the plot.
+    - model_name (str): The name of the model to filter by (default is "U_Net").
+
+    Returns:
+    - None
     """
+    # Filter the DataFrame for the specified model
+    model_df = df[df['Model Name'] == model_name]
+    
+    if model_df.empty:
+        logging.info(f"No data available for model '{model_name}' to plot effect of chunk length.")
+        return
+
     plt.figure(figsize=(10, 6))
-    sns.boxplot(x='Length of Chunks (s)', y='Best Accuracy', data=df)
-    plt.title('Effect of Chunk Length on Accuracy')
+    sns.boxplot(x='Length of Chunks (s)', y='Best Accuracy', data=model_df)
+    plt.title(f'Effect of Chunk Length on Accuracy for {model_name}')
+    plt.xlabel('Length of Chunks (s)')
+    plt.ylabel('Best Accuracy')
+    plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
 
     # Save the plot
-    plot_path = output_dir / 'effect_of_chunk_length.png'
+    plot_path = output_dir / f'effect_of_chunk_length_{model_name}.png'
     plt.savefig(plot_path, dpi=300)
-    plt.show()
+    plt.close()
+    logging.info(f"Effect of chunk length plot for {model_name} saved to {plot_path}")
 
 def plot_number_of_features_vs_performance(df: pd.DataFrame, output_dir: Path):
     """
@@ -309,7 +329,8 @@ def plot_number_of_features_vs_performance(df: pd.DataFrame, output_dir: Path):
     # Save the plot
     plot_path = output_dir / 'number_of_features_vs_performance.png'
     plt.savefig(plot_path, dpi=300)
-    plt.show()
+    plt.close()
+    logging.info(f"Number of features vs performance plot saved to {plot_path}")
 
 def plot_model_architecture_comparison(df: pd.DataFrame, output_dir: Path):
     """
@@ -328,7 +349,8 @@ def plot_model_architecture_comparison(df: pd.DataFrame, output_dir: Path):
     # Save the plot
     plot_path = output_dir / 'model_architecture_comparison.png'
     plt.savefig(plot_path, dpi=300)
-    plt.show()
+    plt.close()
+    logging.info(f"Model architecture comparison plot saved to {plot_path}")
 
 def plot_effect_of_delta_and_delta_delta(df: pd.DataFrame, output_dir: Path):
     """
@@ -338,7 +360,11 @@ def plot_effect_of_delta_and_delta_delta(df: pd.DataFrame, output_dir: Path):
     - df (pd.DataFrame): The DataFrame containing the data.
     - output_dir (Path): The directory to save the plot.
     """
-    delta_df = df[df['Transformation Type'].str.contains('delta')]
+    delta_df = df[df['Transformation Type'].str.contains('delta', case=False)]
+
+    if delta_df.empty:
+        logging.info("No delta or delta-delta transformation types found to plot.")
+        return
 
     plt.figure(figsize=(10, 6))
     sns.boxplot(x='Transformation Type', y='Best Accuracy', data=delta_df)
@@ -348,8 +374,190 @@ def plot_effect_of_delta_and_delta_delta(df: pd.DataFrame, output_dir: Path):
     # Save the plot
     plot_path = output_dir / 'effect_of_delta_and_delta_delta.png'
     plt.savefig(plot_path, dpi=300)
-    plt.show()
+    plt.close()
+    logging.info(f"Effect of delta and delta-delta plot saved to {plot_path}")
 
+def plot_accuracy_vs_complexity(df: pd.DataFrame, output_dir: Path):
+    """
+    Plot accuracy versus model complexity, using different ring colors for models
+    and fill colors for transformations, with a logarithmic x-axis for better scaling.
+    Legends are placed outside of the plot area.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data.
+    - output_dir (Path): The directory to save the plot.
+    """
+    # Filter to only include 5-second models
+    df_5sec = df[df['Length of Chunks (s)'] == 5.0]
+    if df_5sec.empty:
+        logging.info("No 5-second models available to plot.")
+        return
+
+    plt.figure(figsize=(14, 8))  # Increased width to accommodate legends outside
+    sns.set(style="whitegrid")
+
+    # Map fill colors to transformation types
+    transformation_types = df_5sec['Transformation Type'].unique()
+    fill_colors = sns.color_palette("hsv", len(transformation_types))
+    fill_color_dict = dict(zip(transformation_types, fill_colors))
+
+    # Map ring (edge) colors to model names
+    model_names = df_5sec['Model Name'].unique()
+    ring_colors = sns.color_palette("Set1", len(model_names))
+    ring_color_dict = dict(zip(model_names, ring_colors))
+
+    x = df_5sec['Number of Parameters']
+    y = df_5sec['Best Accuracy']
+
+    # Use logarithmic scale for x-axis
+    plt.xscale('log')
+
+    # Plot each data point
+    for idx, row in df_5sec.iterrows():
+        x_val = row['Number of Parameters']
+        y_val = row['Best Accuracy']
+        model = row['Model Name']
+        transformation = row['Transformation Type']
+
+        edge_color = ring_color_dict[model]
+        face_color = fill_color_dict[transformation]
+
+        plt.scatter(
+            x_val, y_val, s=200,
+            facecolors=face_color,
+            edgecolors=edge_color,
+            linewidths=2,
+            alpha=0.7
+        )
+
+    # Create custom legends
+    # Legend for ring colors (Model Names)
+    ring_handles = [
+        Line2D(
+            [0], [0], marker='o', color='w', label=model,
+            markerfacecolor='white',
+            markeredgecolor=ring_color_dict[model],
+            markersize=10,
+            linewidth=2
+        )
+        for model in model_names
+    ]
+
+    # Legend for fill colors (Transformation Types)
+    fill_handles = [
+        Patch(
+            facecolor=fill_color_dict[trans_type],
+            edgecolor='gray',
+            label=trans_type
+        )
+        for trans_type in transformation_types
+    ]
+
+    # Positioning the legends outside the plot
+    # Combine both legends
+    first_legend = plt.legend(
+        handles=ring_handles,
+        title='Model Names (Ring Colors)',
+        loc='upper left',
+        bbox_to_anchor=(1.02, 1),
+        borderaxespad=0
+    )
+    plt.gca().add_artist(first_legend)
+
+    second_legend = plt.legend(
+        handles=fill_handles,
+        title='Transformation Types (Fill Colors)',
+        loc='upper left',
+        bbox_to_anchor=(1.02, 0.6),
+        borderaxespad=0
+    )
+
+    plt.xlabel('Number of Parameters (log scale)', fontsize=14)
+    plt.ylabel('Best Accuracy', fontsize=14)
+    plt.title('Accuracy vs. Model Complexity (5-Second Models)', fontsize=16)
+
+    plt.tight_layout(rect=[0, 0, 0.75, 1])  # Adjust the right boundary to make space for legends
+
+    # Save the plot
+    output_dir.mkdir(parents=True, exist_ok=True)
+    plot_path = output_dir / 'accuracy_vs_complexity.png'
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    logging.info(f"Accuracy vs. Complexity chart saved to {plot_path}")
+    plt.close()
+
+def check_imbalanced_counts(df: pd.DataFrame, category_columns: List[str], threshold: float = 0.2):
+    """
+    Check for imbalanced counts in the specified category columns.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data.
+    - category_columns (List[str]): Columns to check for imbalance.
+    - threshold (float): The minimum ratio of the smallest group to the largest group to consider balanced.
+
+    Returns:
+    - None
+    """
+    for column in category_columns:
+        counts = df[column].value_counts()
+        if counts.empty:
+            logging.warning(f"No data found for category '{column}'.")
+            continue
+        max_count = counts.max()
+        min_count = counts.min()
+        ratio = min_count / max_count
+        if ratio < threshold:
+            logging.warning(
+                f"Imbalanced counts detected in '{column}': "
+                f"Max count = {max_count}, Min count = {min_count}, Ratio = {ratio:.2f}"
+            )
+        else:
+            logging.info(
+                f"Balanced counts in '{column}': "
+                f"Max count = {max_count}, Min count = {min_count}, Ratio = {ratio:.2f}"
+            )
+
+def balance_dataset(df: pd.DataFrame, category_column: str) -> pd.DataFrame:
+    """
+    Balance the dataset by undersampling the majority classes.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame to balance.
+    - category_column (str): The column to balance on.
+
+    Returns:
+    - pd.DataFrame: The balanced DataFrame.
+    """
+    # Find the minimum count among the classes
+    min_count = df[category_column].value_counts().min()
+    
+    # Resample each class to have the same number of samples
+    balanced_df = df.groupby(category_column).apply(lambda x: x.sample(min_count)).reset_index(drop=True)
+    
+    return balanced_df
+
+def plot_experiment_distribution(df: pd.DataFrame, output_dir: Path, category_columns: List[str]):
+    """
+    Plot the distribution of experiments across specified categories.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data.
+    - output_dir (Path): The directory to save the plots.
+    - category_columns (List[str]): Columns to plot distributions for.
+
+    Returns:
+    - None
+    """
+    for column in category_columns:
+        plt.figure(figsize=(10, 6))
+        sns.countplot(data=df, x=column, palette="viridis")
+        plt.title(f'Distribution of Experiments by {column}')
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        
+        plot_path = output_dir / f'experiment_distribution_by_{column.lower().replace(" ", "_")}.png'
+        plt.savefig(plot_path, dpi=300)
+        plt.close()
+        logging.info(f"Distribution plot saved to {plot_path}")
 
 def main():
     """
@@ -358,13 +566,8 @@ def main():
     setup_logging()
 
     # Define the MLflow directory and output directory
-    # You can modify these paths as needed
     mlflow_dir = Path("/Users/zainhazzouri/projects/Master-thesis-experiments/mlflow/")  # Replace with your MLflow directory path
     output_dir = Path("/Users/zainhazzouri/projects/Bachelor_Thesis/results")  # Replace with your desired output directory
-
-    # Alternatively, prompt the user for input
-    # mlflow_dir = Path(input("Enter the path to the MLflow directory: ").strip())
-    # output_dir = Path(input("Enter the path to the output directory (default 'output'): ").strip() or "output")
 
     # Define model sizes
     model_sizes = {
@@ -397,7 +600,7 @@ def main():
     # Specify data types
     df = df.astype({
         'Number of Features': 'int32',
-        'Length of Chunks (s)': 'int32',
+        'Length of Chunks (s)': 'float32',  # Changed to float
         'Number of Parameters': 'int64',
         'Best Accuracy': 'float32',
         'Least Loss': 'float32'
@@ -420,18 +623,31 @@ def main():
     wb.save(excel_file)
     logging.info(f"Metrics saved to {excel_file}")
 
+    # Define categories to check for imbalance
+    category_columns = ['Model Name', 'Transformation Type', 'Number of Features', 'Length of Chunks (s)']
+    
+    # Check for imbalanced experiment counts
+    check_imbalanced_counts(df, category_columns, threshold=0.2)  # 20% threshold
+
+    # Optionally balance the dataset (uncomment if needed)
+    # For example, balancing based on 'Model Name'
+    # df = balance_dataset(df, 'Model Name')
+    # logging.info(f"Dataset balanced based on 'Model Name'. New distribution: {df['Model Name'].value_counts().to_dict()}")
+
+    # Plot the distribution of experiments
+    plot_experiment_distribution(df, output_dir, category_columns)
+
     # Plot the ball chart
     plot_ball_chart(df, output_dir)
     
-    
     # Generate plots for findings
+    plot_accuracy_vs_complexity(df, output_dir)
     plot_best_performing_models(df, output_dir)
     plot_effect_of_features(df, output_dir)
-    plot_effect_of_chunk_length(df, output_dir)
+    plot_effect_of_chunk_length(df, output_dir, model_name="U_Net")
     plot_number_of_features_vs_performance(df, output_dir)
     plot_model_architecture_comparison(df, output_dir)
     plot_effect_of_delta_and_delta_delta(df, output_dir)
-
 
 if __name__ == "__main__":
     main()

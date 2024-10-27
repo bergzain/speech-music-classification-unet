@@ -55,7 +55,7 @@ def sync_folders():
         return
 
     try:
-        # Use rsync to synchronize folders, remove source files, and capture the output
+        # Use rsync to synchronize folders,and capture the output
         rsync_command = f'rsync -avz --checksum --progress -e "sshpass -p {ssh_password} ssh -o StrictHostKeyChecking=no" {ssh_user}@{ssh_host}:{remote_results_dir}/ {local_results_dir}/'
         process = subprocess.Popen(rsync_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         

@@ -194,7 +194,7 @@ class AudioProcessor(Dataset):
 def calculate_number_of_samples():
     path_to_test = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/" 
     # # #
-    val_dataset = AudioProcessor(audio_dir=path_to_test)
+    val_dataset= AudioProcessor(audio_dir=path_to_test, n_mfcc=32, length_in_seconds=0.5, type_of_transformation='MFCC')
     
     val_dataset.count_chunks(val_dataset.load_audio_files_and_labels())
 
@@ -214,6 +214,6 @@ def calculate_number_of_samples():
 
 
 # %%
-
-# calculate_number_of_samples()
+if __name__ == "__main__":
+    calculate_number_of_samples()
 # %%
