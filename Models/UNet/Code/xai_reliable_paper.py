@@ -308,7 +308,7 @@ def get_device() -> str:
 def load_model(model_path: str, model_type: str, device: str) -> torch.nn.Module:
     """Load model with proper device handling"""
     model_classes = {
-        'U_Net': lambda: U_Net(img_ch=1, output_ch=4),
+        'U_Net': lambda: U_Net(img_ch=1, output_ch=2),
         'R2U_Net': lambda: R2U_Net(img_ch=1, output_ch=2),
         'R2AttU_Net': lambda: R2AttU_Net(img_ch=1, output_ch=2),
         'AttentionUNet': lambda: AttentionUNet(mfcc_dim=32, output_ch=2)
@@ -515,9 +515,9 @@ def main():
     """Main function for comprehensive XAI analysis"""
     # Configuration
     config = {
-        'model_path': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/U_Net_LFCC_32_len5S/U_Net_LFCC_32_len5S.pth',
+        'model_path': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/U_Net_LFCC_32_len5.0S/U_Net_LFCC_32_len5.0S.pth',
         'test_data_path': "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/",
-        'save_dir': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/U_Net_LFCC_32_len5S/reliable_paper/',
+        'save_dir': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/U_Net_LFCC_32_len5.0S/cam',
         'model_type': 'U_Net',
         'random_seed': 42,
         'feature_params': {
