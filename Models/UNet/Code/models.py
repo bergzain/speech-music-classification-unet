@@ -471,7 +471,7 @@ class U_Net(nn.Module):
         d1 = self.fc(d1)
         #print("d1 fc shape:", d1.shape)
         d1 = self.softmax(d1)  # apply softmax to get probabilities
-        #print("d1 softmax shape:", d1.shape)
+        # print("d1 softmax shape:", d1.shape)
 
         return d1
 
