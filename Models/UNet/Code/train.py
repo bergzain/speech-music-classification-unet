@@ -62,7 +62,7 @@ class Trainer:
         # Initialize models, datasets, and optimizers
         self.setup_training_components()
         
-    def get_device() -> str:
+    def get_device(self) -> str:
         if torch.backends.cuda.is_built() and torch.cuda.is_available():
             return "cuda"
         elif torch.backends.mps.is_built():

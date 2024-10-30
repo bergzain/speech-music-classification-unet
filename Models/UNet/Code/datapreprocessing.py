@@ -52,7 +52,9 @@ class AudioProcessor(Dataset):
                 melkwargs={
                     'n_mels': min(2 * self.n_mfcc, 128),  # Reduced n_mels
                     'n_fft': 2048,  # Increased FFT size
-                    'hop_length': 512
+                    'hop_length': 512,
+                    'f_min': 0,  # Start from 0 Hz
+                    'f_max': 22050  # Up to Nyquist frequency (44100/2)
                 }
             )
         elif self.type_of_transformation == 'LFCC':
