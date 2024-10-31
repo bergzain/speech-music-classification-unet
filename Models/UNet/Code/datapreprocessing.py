@@ -63,20 +63,65 @@ class AudioProcessor(Dataset):
                 n_lfcc=self.n_mfcc,
                 speckwargs={
                     'n_fft': 2048,
-                    'hop_length': 512
+                    'hop_length': 512,
+                    'f_min': 0,  # Start from 0 Hz
+                    'f_max': 22050  # Up to Nyquist frequency (44100/2)
                 }
             )
-        elif self.type_of_transformation in ['delta', 'delta-delta']:
+        elif self.type_of_transformation == 'delta':
             base_transform = torchaudio.transforms.MFCC(
                 sample_rate=44100,
                 n_mfcc=self.n_mfcc,
                 melkwargs={
                     'n_mels': min(2 * self.n_mfcc, 128),
                     'n_fft': 2048,
-                    'hop_length': 512
+                    'hop_length': 512,
+                    'f_min': 0,  # Start from 0 Hz
+                    'f_max': 22050  # Up to Nyquist frequency (44100/2)
                 }
             )
-            self.transform = lambda x: self._compute_deltas(base_transform(x))
+            self.transform = lambda x: torchaudio.functional.compute_deltas(base_transform(x))
+        elif self.type_of_transformation == 'delta-delta':
+            base_transform = torchaudio.transforms.MFCC(
+                sample_rate=44100,
+                n_mfcc=self.n_mfcc,
+                melkwargs={
+                    'n_mels': min(2 * self.n_mfcc, 128),
+                    'n_fft': 2048,
+                    'hop_length': 512,
+                    'f_min': 0,  # Start from 0 Hz
+                    'f_max': 22050  # Up to Nyquist frequency (44100/2)
+                }
+            )
+            self.transform = lambda x: torchaudio.functional.compute_deltas(
+                torchaudio.functional.compute_deltas(base_transform(x))
+            )
+        elif self.type_of_transformation == 'lfcc-delta':
+            base_transform = torchaudio.transforms.LFCC(
+                sample_rate=44100,
+                n_lfcc=self.n_mfcc,
+                speckwargs={
+                    'n_fft': 2048,
+                    'hop_length': 512,
+                    'f_min': 0,  # Start from 0 Hz
+                    'f_max': 22050  # Up to Nyquist frequency (44100/2)
+                }
+            )
+            self.transform = lambda x: torchaudio.functional.compute_deltas(base_transform(x))
+        elif self.type_of_transformation == 'lfcc-delta-delta':
+            base_transform = torchaudio.transforms.LFCC(
+                sample_rate=44100,
+                n_lfcc=self.n_mfcc,
+                speckwargs={
+                    'n_fft': 2048,
+                    'hop_length': 512,
+                    'f_min': 0,  # Start from 0 Hz
+                    'f_max': 22050  # Up to Nyquist frequency (44100/2)
+                }
+            )
+            self.transform = lambda x: torchaudio.functional.compute_deltas(
+                torchaudio.functional.compute_deltas(base_transform(x))
+            )
         else:
             raise ValueError(f"Unsupported transformation type: {self.type_of_transformation}")
 

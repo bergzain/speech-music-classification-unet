@@ -377,22 +377,7 @@ def plot_accuracy_vs_complexity(df: pd.DataFrame, output_dir: Path):
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close()
 
-def plot_effect_of_delta_and_delta_delta(df: pd.DataFrame, output_dir: Path):
-    """Plot the effect of delta and delta-delta features on model performance."""
-    delta_df = df[df['Transformation Type'].str.contains('delta', case=False)]
 
-    if delta_df.empty:
-        logging.info("No delta or delta-delta transformation types found to plot.")
-        return
-
-    plt.figure(figsize=(10, 6))
-    sns.boxplot(x='Transformation Type', y='Best Accuracy', data=delta_df)
-    plt.title('Effect of Delta and Delta-Delta Features on Accuracy')
-    plt.tight_layout()
-
-    plot_path = output_dir / 'effect_of_delta_and_delta_delta.png'
-    plt.savefig(plot_path, dpi=300)
-    plt.close()
 
 def main():
     """Main function to process MLflow runs and generate reports."""
@@ -459,7 +444,6 @@ def main():
     plot_best_performing_models(df, output_dir)
     plot_effect_of_features(df, output_dir)
     plot_effect_of_chunk_length(df, output_dir, model_name="U_Net")
-    plot_effect_of_delta_and_delta_delta(df, output_dir)
     plot_performance_over_time(df, output_dir)
     plot_experiment_frequency(df, output_dir)
     plot_model_evolution(df, output_dir)
