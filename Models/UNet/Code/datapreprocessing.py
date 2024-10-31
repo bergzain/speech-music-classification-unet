@@ -63,9 +63,7 @@ class AudioProcessor(Dataset):
                 n_lfcc=self.n_mfcc,
                 speckwargs={
                     'n_fft': 2048,
-                    'hop_length': 512,
-                    'f_min': 0,  # Start from 0 Hz
-                    'f_max': 22050  # Up to Nyquist frequency (44100/2)
+                    'hop_length': 512
                 }
             )
         elif self.type_of_transformation == 'delta':
@@ -102,9 +100,7 @@ class AudioProcessor(Dataset):
                 n_lfcc=self.n_mfcc,
                 speckwargs={
                     'n_fft': 2048,
-                    'hop_length': 512,
-                    'f_min': 0,  # Start from 0 Hz
-                    'f_max': 22050  # Up to Nyquist frequency (44100/2)
+                    'hop_length': 512
                 }
             )
             self.transform = lambda x: torchaudio.functional.compute_deltas(base_transform(x))
@@ -114,9 +110,7 @@ class AudioProcessor(Dataset):
                 n_lfcc=self.n_mfcc,
                 speckwargs={
                     'n_fft': 2048,
-                    'hop_length': 512,
-                    'f_min': 0,  # Start from 0 Hz
-                    'f_max': 22050  # Up to Nyquist frequency (44100/2)
+                    'hop_length': 512
                 }
             )
             self.transform = lambda x: torchaudio.functional.compute_deltas(
@@ -279,6 +273,88 @@ def calculate_number_of_samples():
 
 
 # %%
+def test_audio_processor():
+    """Test the AudioProcessor class with different transformation types"""
+    # Create a temporary test directory and audio files
+    import tempfile
+    import soundfile as sf
+    import numpy as np
+    
+    def create_test_audio(directory, filename, duration=1.0, sample_rate=44100):
+        """Create a test audio file with a simple sine wave"""
+        t = np.linspace(0, duration, int(sample_rate * duration))
+        audio = np.sin(2 * np.pi * 440 * t)  # 440 Hz sine wave
+        sf.write(os.path.join(directory, filename), audio, sample_rate)
+    
+    # Create temporary directory structure
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create music and speech directories
+        music_dir = os.path.join(temp_dir, "music_wav")
+        speech_dir = os.path.join(temp_dir, "speech_wav")
+        os.makedirs(music_dir)
+        os.makedirs(speech_dir)
+        
+        # Create test files
+        create_test_audio(music_dir, "test_music.wav")
+        create_test_audio(speech_dir, "test_speech.wav")
+        
+        # Test parameters
+        n_mfcc = 32
+        length_in_seconds = 0.5
+        transformation_types = [
+            'MFCC', 'LFCC', 'delta', 'delta-delta', 
+            'lfcc-delta', 'lfcc-delta-delta'
+        ]
+        
+        print("Starting AudioProcessor tests...")
+        
+        for transform_type in transformation_types:
+            try:
+                print(f"\nTesting {transform_type} transformation:")
+                
+                # Initialize AudioProcessor
+                processor = AudioProcessor(
+                    audio_dir=temp_dir,
+                    n_mfcc=n_mfcc,
+                    length_in_seconds=length_in_seconds,
+                    type_of_transformation=transform_type
+                )
+                
+                # Test loading files
+                print(f"Found {processor.music_count} music files and {processor.speech_count} speech files")
+                
+                # Test getting an item
+                features, label = processor[0]
+                print(f"Feature shape: {features.shape}")
+                print(f"Label: {label}")
+                
+                # Check feature dimensions
+                # Features should be of shape [1, n_mfcc, 112] or [n_mfcc, 112] depending on the transform
+                if len(features.shape) == 3:
+                    assert features.shape[1] == n_mfcc, f"Expected {n_mfcc} features, got {features.shape[1]}"
+                    assert features.shape[2] == 112, "Expected feature length of 112"
+                else:  # len(features.shape) == 2
+                    assert features.shape[0] == n_mfcc, f"Expected {n_mfcc} features, got {features.shape[0]}"
+                    assert features.shape[1] == 112, "Expected feature length of 112"
+                
+                # Check if features contain any NaN values
+                assert not torch.isnan(features).any(), "Features contain NaN values"
+                
+                # Additional shape information for debugging
+                print(f"Feature dimensions explanation:")
+                if len(features.shape) == 3:
+                    print(f"- Channels: {features.shape[0]}")
+                    print(f"- MFCC coefficients: {features.shape[1]}")
+                    print(f"- Time steps: {features.shape[2]}")
+                else:
+                    print(f"- MFCC coefficients: {features.shape[0]}")
+                    print(f"- Time steps: {features.shape[1]}")
+                
+                print(f"✓ {transform_type} tests passed")
+                
+            except Exception as e:
+                print(f"✗ Error testing {transform_type}: {str(e)}")
+                raise
+
 if __name__ == "__main__":
-    calculate_number_of_samples()
-# %%
+    test_audio_processor()
