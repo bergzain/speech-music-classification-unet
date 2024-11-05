@@ -264,6 +264,14 @@ def plot_ball_chart_5_sec(df: pd.DataFrame, output_dir: Path):
     markers = ['o', 's', 'D', '^']  # One marker for each model type
     marker_dict = dict(zip(model_names, markers))
 
+    # Model sizes dictionary
+    model_sizes = {
+        "U_Net": 34526084,
+        "AttentionUNet": 34877486,
+        "R2U_Net": 39091460,
+        "R2AttU_Net": 39442992
+    }
+
     # Calculate sizes based on number of parameters
     min_size = 50
     max_size = 300
@@ -275,7 +283,7 @@ def plot_ball_chart_5_sec(df: pd.DataFrame, output_dir: Path):
     for idx, row in df_5sec.iterrows():
         x = row['Least Loss']
         y = row['Best Accuracy']
-        size = sizes_scaled[idx]  # Use index directly since we reset_index
+        size = sizes_scaled[idx]
         color = color_dict[row['Transformation Type']]
         marker = marker_dict[row['Model Name']]
         plt.scatter(x, y, s=size, c=[color], marker=marker, edgecolors='k', alpha=0.7)
@@ -300,20 +308,26 @@ def plot_ball_chart_5_sec(df: pd.DataFrame, output_dir: Path):
                           markeredgecolor='k') 
                     for trans_type in transformation_types]
 
-    # Create size legend
-    size_values = [min(sizes), sizes.mean(), max(sizes)]
-    size_labels = [f'{int(val/1e6)}M params' for val in size_values]
-    size_scale_values = [(val - sizes.min()) / (sizes.max() - sizes.min()) * (max_size - min_size) + min_size 
-                        for val in size_values]
-    size_handles = [Line2D([0], [0],
-                          marker='o',
-                          color='w',
-                          label=label,
-                          markerfacecolor='gray',
-                          markersize=np.sqrt(size/np.pi) * 0.5,
-                          markeredgecolor='k')
-                   for size, label in zip(size_scale_values, size_labels)]
+    # Create size legend based on model architectures
+    size_handles = []
+    shape_order = {
+        'o': ('U_Net', 34.5),
+        's': ('AttentionUNet', 34.9),
+        'D': ('R2U_Net', 39.1),
+        '^': ('R2AttU_Net', 39.4)
+    }
 
+    for marker, (model, param_count) in shape_order.items():
+        size = min_size + (max_size - min_size) * (model_sizes[model] - min(model_sizes.values())) / (max(model_sizes.values()) - min(model_sizes.values()))
+        size_handles.append(
+            Line2D([0], [0],
+                  marker=marker,
+                  color='w',
+                  label=f'{param_count}M params',
+                  markerfacecolor='gray',
+                  markersize=np.sqrt(size/np.pi) * 0.5,
+                  markeredgecolor='k')
+        )
     # Add legends
     first_legend = plt.legend(handles=marker_handles, 
                             title='Model Architecture',
@@ -328,7 +342,7 @@ def plot_ball_chart_5_sec(df: pd.DataFrame, output_dir: Path):
     plt.gca().add_artist(second_legend)
     
     plt.legend(handles=size_handles, 
-              title='Model Size',
+              title='Model Parameters',
               loc='upper right', 
               bbox_to_anchor=(1.15, 0.4))
 
