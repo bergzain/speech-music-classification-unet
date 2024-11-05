@@ -119,6 +119,53 @@ class ScoreCAM(BaseCAM):
             cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
         
         return cam, output
+    
+class LayerCAM(BaseCAM):
+    """LayerCAM implementation
+    
+    LayerCAM computes the weighted combination of forward activation maps 
+    for a specific class. Unlike GradCAM, it preserves fine-grained details
+    by using positive gradients at each activation position.
+    """
+    def get_heatmap(self, input_tensor: torch.Tensor, class_idx: Optional[int] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+        output = self.model(input_tensor)
+        
+        if class_idx is None:
+            class_idx = output.argmax(dim=1)
+        
+        self.model.zero_grad()
+        one_hot = torch.zeros_like(output)
+        one_hot[0][class_idx] = 1
+        output.backward(gradient=one_hot, retain_graph=True)
+        
+        with torch.no_grad():
+            # Get positive gradients only
+            positive_gradients = F.relu(self.gradients)
+            
+            # Element-wise multiplication of feature maps with positive gradients
+            weighted_activations = self.activations * positive_gradients
+            
+            # Global average pooling over spatial dimensions
+            weights = torch.mean(positive_gradients, dim=(2, 3), keepdim=True)
+            
+            # Weight the activation maps and sum
+            heatmap = torch.sum(weighted_activations * weights, dim=1, keepdim=True)
+            
+            # Apply ReLU to highlight positive contributions
+            heatmap = F.relu(heatmap)
+            
+            # Interpolate to input size
+            heatmap = F.interpolate(
+                heatmap,
+                size=input_tensor.shape[2:],
+                mode='bilinear',
+                align_corners=False
+            )
+            
+            # Normalize to [0, 1]
+            heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min() + 1e-8)
+        
+        return heatmap, output
 
 def compute_feature(y: np.ndarray, sr: int, feature_type: str = 'MFCC', n_mfcc: int = 32) -> Tuple[np.ndarray, str]:
     """Compute audio features with specified parameters"""
@@ -394,6 +441,7 @@ def analyze_with_multiple_cams(model: torch.nn.Module, input_tensor: torch.Tenso
     cam_techniques = {
         'GradCAM': VanillaGradCAM(model, target_layer),
         'GradCAM++': GradCAMPlusPlus(model, target_layer),
+        'LayerCAM': LayerCAM(model, target_layer),
         'ScoreCAM': ScoreCAM(model, target_layer)
     }
     
@@ -431,7 +479,7 @@ def create_comparative_analysis(analysis_results: Dict[str, List[Dict]], save_di
     positions = np.arange(len(analysis_results.keys()))
     width = 0.2
     
-    for i, technique in enumerate(['GradCAM', 'GradCAM++', 'ScoreCAM']):
+    for i, technique in enumerate(['GradCAM', 'GradCAM++', 'LayerCAM','ScoreCAM']):
         confidences = [np.mean([sample[i] for sample in class_data[cls]['confidences']])
                       for cls in analysis_results.keys()]
         errors = [np.std([sample[i] for sample in class_data[cls]['confidences']])
@@ -515,9 +563,9 @@ def main():
     """Main function for comprehensive XAI analysis"""
     # Configuration
     config = {
-        'model_path': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/U_Net_LFCC_32_len5.0S/U_Net_LFCC_32_len5.0S.pth',
+        'model_path': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/AttentionUNet_LFCC_32_len5.0S/AttentionUNet_LFCC_32_len5.0S.pth',
         'test_data_path': "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/",
-        'save_dir': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/U_Net_LFCC_32_len5.0S/cam',
+        'save_dir': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/AttentionUNet_LFCC_32_len5.0S/cam',
         'model_type': 'U_Net',
         'random_seed': 42,
         'feature_params': {

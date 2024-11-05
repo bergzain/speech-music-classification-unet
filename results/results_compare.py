@@ -241,69 +241,106 @@ def plot_effect_of_chunk_length(df: pd.DataFrame, output_dir: Path, model_name: 
     plt.savefig(plot_path, dpi=300)
     plt.close()
 
-def plot_performance_over_time(df: pd.DataFrame, output_dir: Path):
-    """Plot model performance trends over time."""
-    plt.figure(figsize=(12, 6))
-    
-    for model in df['Model Name'].unique():
-        model_data = df[df['Model Name'] == model]
-        plt.scatter(model_data['Timestamp'], model_data['Best Accuracy'], 
-                   label=model, alpha=0.6)
-        
-        # Add trend line
-        z = np.polyfit(model_data['Timestamp'].astype(np.int64), 
-                      model_data['Best Accuracy'], 1)
-        p = np.poly1d(z)
-        plt.plot(model_data['Timestamp'], 
-                p(model_data['Timestamp'].astype(np.int64)), 
-                linestyle='--', alpha=0.8)
 
-    plt.title('Model Performance Over Time')
-    plt.xlabel('Timestamp')
-    plt.ylabel('Best Accuracy')
-    plt.xticks(rotation=45)
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.tight_layout()
+def plot_ball_chart_5_sec(df: pd.DataFrame, output_dir: Path):
+    """Plot a bubble chart of the model performance for 5-second experiments."""
+    # Filter for 5-second experiments and reset index
+    df_5sec = df[df['Length of Chunks (s)'] == 5.0].reset_index(drop=True)
     
-    plot_path = output_dir / 'performance_over_time.png'
-    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-    plt.close()
+    if df_5sec.empty:
+        logging.info("No 5-second models available to plot.")
+        return
+    
+    plt.figure(figsize=(12, 8))
+    sns.set(style="whitegrid")
 
-def plot_experiment_frequency(df: pd.DataFrame, output_dir: Path):
-    """Plot the frequency of experiments over time."""
-    plt.figure(figsize=(12, 6))
-    
-    daily_counts = df.resample('D', on='Timestamp')['Run Name'].count()
-    
-    plt.bar(daily_counts.index, daily_counts.values, alpha=0.6)
-    plt.title('Experiment Frequency Over Time')
-    plt.xlabel('Date')
-    plt.ylabel('Number of Experiments')
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    
-    plot_path = output_dir / 'experiment_frequency.png'
-    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-    plt.close()
+    # Map colors to transformation types
+    transformation_types = df_5sec['Transformation Type'].unique()
+    colors = sns.color_palette("hsv", len(transformation_types))
+    color_dict = dict(zip(transformation_types, colors))
 
-def plot_model_evolution(df: pd.DataFrame, output_dir: Path):
-    """Plot how different model types were used over time."""
-    plt.figure(figsize=(12, 6))
-    
-    for model in df['Model Name'].unique():
-        model_data = df[df['Model Name'] == model]
-        plt.scatter(model_data['Timestamp'], 
-                   [model] * len(model_data), 
-                   label=model, alpha=0.6)
+    # Map markers to model names
+    model_names = df_5sec['Model Name'].unique()
+    markers = ['o', 's', 'D', '^']  # One marker for each model type
+    marker_dict = dict(zip(model_names, markers))
 
-    plt.title('Model Evolution Timeline')
-    plt.xlabel('Date')
-    plt.ylabel('Model Type')
-    plt.xticks(rotation=45)
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.tight_layout()
+    # Calculate sizes based on number of parameters
+    min_size = 50
+    max_size = 300
+    sizes = df_5sec['Number of Parameters']
+    sizes_scaled = (sizes - sizes.min()) / (sizes.max() - sizes.min())
+    sizes_scaled = sizes_scaled * (max_size - min_size) + min_size
+
+    # Plot each data point
+    for idx, row in df_5sec.iterrows():
+        x = row['Least Loss']
+        y = row['Best Accuracy']
+        size = sizes_scaled[idx]  # Use index directly since we reset_index
+        color = color_dict[row['Transformation Type']]
+        marker = marker_dict[row['Model Name']]
+        plt.scatter(x, y, s=size, c=[color], marker=marker, edgecolors='k', alpha=0.7)
+
+    # Create markers legend
+    marker_handles = [Line2D([0], [0], 
+                           marker=marker_dict[model], 
+                           color='w', 
+                           label=model,
+                           markerfacecolor='gray', 
+                           markersize=8, 
+                           markeredgecolor='k') 
+                     for model in model_names]
+
+    # Create color legend
+    color_handles = [Line2D([0], [0], 
+                          marker='o', 
+                          color='w', 
+                          label=trans_type,
+                          markerfacecolor=color_dict[trans_type], 
+                          markersize=8, 
+                          markeredgecolor='k') 
+                    for trans_type in transformation_types]
+
+    # Create size legend
+    size_values = [min(sizes), sizes.mean(), max(sizes)]
+    size_labels = [f'{int(val/1e6)}M params' for val in size_values]
+    size_scale_values = [(val - sizes.min()) / (sizes.max() - sizes.min()) * (max_size - min_size) + min_size 
+                        for val in size_values]
+    size_handles = [Line2D([0], [0],
+                          marker='o',
+                          color='w',
+                          label=label,
+                          markerfacecolor='gray',
+                          markersize=np.sqrt(size/np.pi) * 0.5,
+                          markeredgecolor='k')
+                   for size, label in zip(size_scale_values, size_labels)]
+
+    # Add legends
+    first_legend = plt.legend(handles=marker_handles, 
+                            title='Model Architecture',
+                            loc='upper right', 
+                            bbox_to_anchor=(1.15, 1))
+    plt.gca().add_artist(first_legend)
     
-    plot_path = output_dir / 'model_evolution_timeline.png'
+    second_legend = plt.legend(handles=color_handles, 
+                             title='Feature Type',
+                             loc='upper right', 
+                             bbox_to_anchor=(1.15, 0.7))
+    plt.gca().add_artist(second_legend)
+    
+    plt.legend(handles=size_handles, 
+              title='Model Size',
+              loc='upper right', 
+              bbox_to_anchor=(1.15, 0.4))
+
+    plt.xlabel('Least Loss', fontsize=14)
+    plt.ylabel('Best Accuracy', fontsize=14)
+    plt.title('Model Performance Comparison (5-Second Length)', fontsize=16)
+    plt.grid(True)
+    
+    # Adjust layout to make room for legends
+    plt.subplots_adjust(right=0.85)
+    
+    plot_path = output_dir / 'model_performance_ball_chart_5_sec.png'
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -379,6 +416,7 @@ def plot_accuracy_vs_complexity(df: pd.DataFrame, output_dir: Path):
 
 
 
+
 def main():
     """Main function to process MLflow runs and generate reports."""
     setup_logging()
@@ -444,9 +482,8 @@ def main():
     plot_best_performing_models(df, output_dir)
     plot_effect_of_features(df, output_dir)
     plot_effect_of_chunk_length(df, output_dir, model_name="U_Net")
-    plot_performance_over_time(df, output_dir)
-    plot_experiment_frequency(df, output_dir)
-    plot_model_evolution(df, output_dir)
+    plot_ball_chart_5_sec(df, output_dir)
+    
 
     # Print summary statistics
     print("\nExperiment Timeline Summary:")
