@@ -763,7 +763,21 @@ def main():
 
                 try:
                     # Get audio file path
-                    file_path = dataset.audio_files_and_labels[i][0]
+                    
+                    matching_files = [
+                        (idx, filepath) for idx, (filepath, file_label) 
+                        in enumerate(dataset.audio_files_and_labels) 
+                        if file_label == class_idx
+                    ]
+                    
+                    if not matching_files:
+                        raise ValueError(f"No files found for class {class_idx}")
+                        
+                    # Use the first matching file for this class
+                    file_idx, file_path = matching_files[i]
+                    
+                    print(f"Processing {class_names[class_idx]} sample {i + 1}")
+                    print(f"Using file: {file_path}")
 
                     # Generate comprehensive visualizations
                     y, sr = visualize_sample_with_features(
