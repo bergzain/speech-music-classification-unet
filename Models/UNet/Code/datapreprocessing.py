@@ -28,6 +28,8 @@ class AudioProcessor(Dataset):
         self.device = self._get_device()
         self.target_length = int(length_in_seconds * 44100)  # sample_rate = 44100
         self.type_of_transformation = type_of_transformation
+        self.target_sample_rate = 44100  # Add this line
+
         
         # Initialize counters
         self.speech_count = self.music_count = 0

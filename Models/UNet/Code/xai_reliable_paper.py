@@ -8,7 +8,6 @@ import numpy as np
 import librosa
 import librosa.display
 import soundfile as sf
-import torchaudio
 import json
 import logging
 import traceback
@@ -20,9 +19,11 @@ import imageio
 from typing import Dict, List, Tuple, Any, Optional
 import warnings
 import re
+import scipy
+from scipy.fftpack import dct  # Import dct for LFCC computation
+import torchaudio
+
 warnings.filterwarnings('ignore')
-
-
 
 
 def parse_model_filename(model_path):
@@ -184,259 +185,126 @@ class LayerCAM(BaseCAM):
         
         return heatmap, output
 
+def plot_multiple_cams_with_features(input_tensor: torch.Tensor,
+                                     results: Dict[str, Tuple[torch.Tensor, float]],
+                                     class_name: str, save_path: str,
+                                     feature_type: str,
+                                     n_mfcc: int,
+                                     length_in_seconds: float,
+                                     sr: int,
+                                     hop_length: int):
+    """
+    Create comprehensive visualization combining CAM results with audio features.
+    """
+    try:
+        print("Starting visualization...")
+        input_data = input_tensor.squeeze().cpu().numpy()
+        n_coefficients, n_frames = input_data.shape
+        print(f"input_data.shape: {input_data.shape}")
+        print(f"Number of coefficients (features): {n_coefficients}")
 
-    
-def compute_feature(y: np.ndarray, sr: int, feature_type: str = 'LFCC', n_mfcc: int = 32,
-                    n_fft: int = 2048, hop_length: int = 512, win_length: int = 2048,
-                    length_in_seconds: float = 5.0) -> Tuple[np.ndarray, str]:
-    """Compute audio features with specified parameters and ensure consistency in feature dimensions."""
-    # Ensure the audio signal y is the correct length
-    desired_length = int(sr * length_in_seconds)
-    if len(y) > desired_length:
-        y = y[:desired_length]
-    else:
-        y = np.pad(y, (0, max(0, desired_length - len(y))), 'constant')
+        # Compute time axis manually
+        times = np.linspace(0, length_in_seconds, n_frames)
 
-    # Calculate expected number of frames (time steps)
-    expected_time_steps = int(np.ceil((desired_length - win_length) / hop_length)) + 1
+        # Calculate total rows
+        num_techniques = len(results)
+        total_rows = num_techniques + 1
 
-    # Compute features based on the specified type
-    if feature_type == 'MFCC':
-        feature = librosa.feature.mfcc(
-            y=y,
-            sr=sr,
-            n_mfcc=n_mfcc,
-            n_fft=n_fft,
-            hop_length=hop_length,
-            win_length=win_length
-        )
-        title = 'MFCC'
-    elif feature_type == 'LFCC':
-        waveform = torch.FloatTensor(y)
-        transform = torchaudio.transforms.LFCC(
-            sample_rate=sr,
-            n_lfcc=n_mfcc,
-            speckwargs={
-                'n_fft': n_fft,
-                'hop_length': hop_length,
-                'win_length': win_length
-            }
-        )
-        feature = transform(waveform).numpy()
-        title = 'LFCC'
-    elif feature_type == 'delta':
-        mfcc = librosa.feature.mfcc(
-            y=y,
-            sr=sr,
-            n_mfcc=n_mfcc,
-            n_fft=n_fft,
-            hop_length=hop_length,
-            win_length=win_length
-        )
-        feature = librosa.feature.delta(mfcc)
-        title = 'Delta MFCC'
-    elif feature_type == 'delta-delta':
-        mfcc = librosa.feature.mfcc(
-            y=y,
-            sr=sr,
-            n_mfcc=n_mfcc,
-            n_fft=n_fft,
-            hop_length=hop_length,
-            win_length=win_length
-        )
-        feature = librosa.feature.delta(mfcc, order=2)
-        title = 'Delta-Delta MFCC'
-    elif feature_type == 'lfcc-delta':
-        waveform = torch.FloatTensor(y)
-        transform = torchaudio.transforms.LFCC(
-            sample_rate=sr,
-            n_lfcc=n_mfcc,
-            speckwargs={
-                'n_fft': n_fft,
-                'hop_length': hop_length,
-                'win_length': win_length
-            }
-        )
-        lfcc = transform(waveform)
-        feature = librosa.feature.delta(lfcc.numpy())
-        title = 'Delta LFCC'
-    elif feature_type == 'lfcc-delta-delta':
-        waveform = torch.FloatTensor(y)
-        transform = torchaudio.transforms.LFCC(
-            sample_rate=sr,
-            n_lfcc=n_mfcc,
-            speckwargs={
-                'n_fft': n_fft,
-                'hop_length': hop_length,
-                'win_length': win_length
-            }
-        )
-        lfcc = transform(waveform)
-        feature = librosa.feature.delta(lfcc.numpy(), order=2)
-        title = 'Delta-Delta LFCC'
-    else:
-        raise ValueError(f"Unsupported feature type: {feature_type}")
+        # Create the figure
+        fig = plt.figure(figsize=(20, 5 * total_rows))
 
-    # Ensure the feature has the expected number of time steps
-    feature = pad_or_trim_feature(feature, expected_time_steps)
+        # Plot CAM results
+        for idx, (technique_name, (heatmap, confidence)) in enumerate(results.items()):
+            print(f"Processing {technique_name}...")
+            row = idx + 1
+            heatmap_data = heatmap.squeeze().cpu().numpy()
+            print(f"heatmap_data.shape before resizing: {heatmap_data.shape}")
 
-    return feature, title
+            # Resize heatmap to match input data dimensions if necessary
+            if heatmap_data.shape != input_data.shape:
+                heatmap_resized = scipy.ndimage.zoom(
+                    heatmap_data,
+                    (
+                        n_coefficients / heatmap_data.shape[0],
+                        n_frames / heatmap_data.shape[1]
+                    ),
+                    order=1
+                )
+                print(f"heatmap_resized.shape after resizing: {heatmap_resized.shape}")
+            else:
+                heatmap_resized = heatmap_data
 
-def pad_or_trim_feature(feature: np.ndarray, expected_time_steps: int) -> np.ndarray:
-    """Pad or trim the feature to have the expected number of time steps."""
-    current_time_steps = feature.shape[1]
-    if current_time_steps > expected_time_steps:
-        feature = feature[:, :expected_time_steps]
-    elif current_time_steps < expected_time_steps:
-        padding = expected_time_steps - current_time_steps
-        feature = np.pad(feature, ((0, 0), (0, padding)), mode='constant')
-    return feature
+            # Original features subplot
+            ax1 = plt.subplot2grid((total_rows, 3), (row, 0))
+            img1 = librosa.display.specshow(
+                input_data,
+                x_axis='time',
+                y_axis=None,  # Disable automatic scaling
+                sr=sr,
+                hop_length=hop_length,
+                ax=ax1
+            )
+            ax1.set_ylabel(f'{feature_type} Coefficient Index')
+            ax1.set_xlabel('Time (s)')
+            ax1.set_ylim(0, n_coefficients)
+            ax1.set_yticks(np.linspace(0, n_coefficients, 5))  # Adjust as needed
+            plt.colorbar(img1, ax=ax1)
+            ax1.set_title(f'{technique_name} Input')
 
-def analyze_audio_features(y: np.ndarray, sr: int, output_dir: str, 
-                           class_name: str, sample_num: int,
-                           n_fft: int = 2048, hop_length: int = 512, win_length: int = 2048) -> Dict[str, np.ndarray]:
-    """Analyze audio features and generate visualizations"""
-    features = {
-        'zcr': librosa.feature.zero_crossing_rate(y, hop_length=hop_length, frame_length=win_length),
-        'rms': librosa.feature.rms(y=y, frame_length=win_length, hop_length=hop_length),
-        'spectral_centroids': librosa.feature.spectral_centroid(y=y, sr=sr, n_fft=n_fft, hop_length=hop_length, win_length=win_length),
-        'spectral_rolloff': librosa.feature.spectral_rolloff(y=y, sr=sr, n_fft=n_fft, hop_length=hop_length, win_length=win_length)
-    }
-    
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
-    
-    ax1.plot(features['zcr'][0])
-    ax1.set_title('Zero Crossing Rate')
-    ax1.set_xlabel('Frame')
-    ax1.set_ylabel('ZCR')
-    
-    ax2.plot(features['rms'][0])
-    ax2.set_title('RMS Energy')
-    ax2.set_xlabel('Frame')
-    ax2.set_ylabel('Energy')
-    
-    ax3.plot(features['spectral_centroids'][0])
-    ax3.set_title('Spectral Centroid')
-    ax3.set_xlabel('Frame')
-    ax3.set_ylabel('Frequency (Hz)')
-    
-    ax4.plot(features['spectral_rolloff'][0])
-    ax4.set_title('Spectral Rolloff')
-    ax4.set_xlabel('Frame')
-    ax4.set_ylabel('Frequency (Hz)')
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, f'{class_name}_sample_{sample_num}_features.png'))
-    plt.close()
-    
-    return features
+            # Heatmap subplot
+            ax2 = plt.subplot2grid((total_rows, 3), (row, 1))
+            img2 = ax2.imshow(
+                heatmap_resized,
+                aspect='auto',
+                origin='lower',
+                cmap='jet'
+            )
+            ax2.set_ylabel(f'{feature_type} Coefficient Index')
+            ax2.set_xlabel('Time (s)')
+            ax2.set_ylim(0, n_coefficients)
+            ax2.set_yticks(np.linspace(0, n_coefficients, 5))  # Adjust as needed
+            plt.colorbar(img2, ax=ax2)
+            ax2.set_title(f'{technique_name} Heatmap')
 
-def visualize_sample_with_features(file_path: str, save_dir: str, class_name: str, 
-                                   sample_num: int, feature_type: str = 'LFCC', 
-                                   n_mfcc: int = 32, sr: int = 44100,
-                                   length_in_seconds: float = 5.0,
-                                   n_fft: int = 2048, hop_length: int = 512, win_length: int = 2048) -> Tuple[np.ndarray, int]:
-    """Create comprehensive visualization of audio sample with features"""
-    # Load audio
-    y, _ = librosa.load(file_path, sr=sr)
-    
-    # Trim or pad the audio to the desired length
-    desired_length = int(sr * length_in_seconds)
-    if len(y) > desired_length:
-        y = y[:desired_length]
-    else:
-        y = np.pad(y, (0, max(0, desired_length - len(y))), 'constant')
-    
-    # Proceed with visualization
-    fig = plt.figure(figsize=(20, 15))
-    
-    # Waveform
-    ax1 = plt.subplot2grid((3, 2), (0, 0), colspan=2)
-    librosa.display.waveshow(y, sr=sr, ax=ax1)
-    ax1.set_title('Waveform')
-    ax1.set_xlabel('Time (s)')
-    ax1.set_ylabel('Amplitude')
-    
-    # Feature representation
-    ax2 = plt.subplot2grid((3, 2), (1, 0))
-    feature, title = compute_feature(y, sr, feature_type, n_mfcc, n_fft, hop_length, win_length)
-    img = librosa.display.specshow(feature, x_axis='time', y_axis='linear', sr=sr, hop_length=hop_length, ax=ax2)
-    ax2.set_title(f'{title} Features')
-    ax2.set_xlabel('Time (s)')
-    ax2.set_ylabel('Coefficient')
-    plt.colorbar(img, ax=ax2, format='%+2.0f dB')
-    
-    # Mel Spectrogram
-    ax3 = plt.subplot2grid((3, 2), (1, 1))
-    mel_spec = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=hop_length, win_length=win_length)
-    mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
-    img = librosa.display.specshow(mel_spec_db, x_axis='time', y_axis='mel', sr=sr, hop_length=hop_length, ax=ax3)
-    ax3.set_title('Mel Spectrogram')
-    plt.colorbar(img, ax=ax3, format='%+2.0f dB')
-    
-    # Additional features
-    ax4 = plt.subplot2grid((3, 2), (2, 0))
-    zcr = librosa.feature.zero_crossing_rate(y, hop_length=hop_length, frame_length=win_length)
-    ax4.plot(zcr[0])
-    ax4.set_title('Zero Crossing Rate')
-    ax4.set_xlabel('Frame')
-    ax4.set_ylabel('ZCR')
-    
-    ax5 = plt.subplot2grid((3, 2), (2, 1))
-    spectral_centroids = librosa.feature.spectral_centroid(y=y, sr=sr, n_fft=n_fft, hop_length=hop_length, win_length=win_length)
-    ax5.plot(spectral_centroids[0])
-    ax5.set_title('Spectral Centroid')
-    ax5.set_xlabel('Frame')
-    ax5.set_ylabel('Frequency (Hz)')
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, f'{class_name}_sample_{sample_num}_full_analysis.png'))
-    plt.close()
-    
-    return y, sr
+            # Overlay subplot
+            ax3 = plt.subplot2grid((total_rows, 3), (row, 2))
+            img3 = librosa.display.specshow(
+                input_data,
+                x_axis='time',
+                y_axis=None,  # Disable automatic scaling
+                sr=sr,
+                hop_length=hop_length,
+                ax=ax3
+            )
+            
+            ax3.imshow(
+                heatmap_resized,
+                cmap='jet',
+                alpha=0.5,
+                aspect='auto',
+                origin='lower'
+            )
+            ax3.set_ylabel(f'{feature_type} Coefficient Index')
+            ax3.set_xlabel('Time (s)')
+            ax3.set_ylim(0, n_coefficients)
+            ax3.set_yticks(np.linspace(0, n_coefficients, 5))  # Adjust as needed
+            plt.colorbar(img3, ax=ax3)
+            ax3.set_title(f'{technique_name} Overlay (Conf: {confidence:.2f})')
 
-def plot_multiple_cams_with_features(input_tensor: torch.Tensor, 
-                                   audio_features: Dict[str, np.ndarray],
-                                   results: Dict[str, Tuple[torch.Tensor, float]],
-                                   class_name: str, save_path: str):
-    """Create comprehensive visualization combining CAM results with audio features"""
-    num_techniques = len(results)
-    fig = plt.figure(figsize=(20, 5*(num_techniques + 1)))
-    
-    # Plot audio features first
-    ax_feat = plt.subplot2grid((num_techniques + 1, 3), (0, 0), colspan=3)
-    input_data = input_tensor.squeeze().cpu().numpy()
-    im1 = ax_feat.imshow(input_data, aspect='auto', origin='lower')
-    ax_feat.set_title(f'Original {class_name} Features')
-    plt.colorbar(im1, ax=ax_feat)
-    
-    # Plot CAM results
-    for idx, (technique_name, (heatmap, confidence)) in enumerate(results.items()):
-        row = idx + 1
-        heatmap_data = heatmap.squeeze().cpu().numpy()
-        
-        # Original
-        ax1 = plt.subplot2grid((num_techniques + 1, 3), (row, 0))
-        im1 = ax1.imshow(input_data, aspect='auto', origin='lower')
-        ax1.set_title(f'{technique_name} Input')
-        plt.colorbar(im1, ax=ax1)
-        
-        # Heatmap
-        ax2 = plt.subplot2grid((num_techniques + 1, 3), (row, 1))
-        im2 = ax2.imshow(heatmap_data, cmap='jet', aspect='auto', origin='lower')
-        ax2.set_title(f'{technique_name} Heatmap')
-        plt.colorbar(im2, ax=ax2)
-        
-        # Overlay
-        ax3 = plt.subplot2grid((num_techniques + 1, 3), (row, 2))
-        im3 = ax3.imshow(input_data, aspect='auto', origin='lower')
-        ax3.imshow(heatmap_data, cmap='jet', alpha=0.5, aspect='auto', origin='lower')
-        ax3.set_title(f'{technique_name} Overlay (Conf: {confidence:.2f})')
-        plt.colorbar(im3, ax=ax3)
-    
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    plt.close()
+        print("Finalizing plot...")
+        plt.tight_layout()
+        print(f"Saving plot to: {save_path}")
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print("Plot completed successfully!")
+
+    except Exception as e:
+        print(f"Error in plotting: {str(e)}")
+        traceback.print_exc()
+        raise
+
+
+
 
 def set_random_seeds(seed: int = 42) -> None:
     """Set random seeds for reproducibility"""
@@ -559,125 +427,75 @@ def analyze_with_multiple_cams(model: torch.nn.Module, input_tensor: torch.Tenso
     
     return results
 
-def create_comparative_analysis(analysis_results: Dict[str, List[Dict]], save_dir: str) -> None:
-    """Create comparative visualizations across samples and classes"""
+
+def save_processed_audio(file_path: str, save_path: str, target_sample_rate: int, chunk_length_seconds: float, chunk_index: int = 0) -> bool:
+    """
+    Load, process, and save a specific chunk of an audio file.
     
-    # Prepare data for plotting
-    class_data = {
-        class_name: {
-            'confidences': [],
-            'feature_stats': []
-        } for class_name in analysis_results.keys()
-    }
-    
-    for class_name, results in analysis_results.items():
-        for result in results:
-            class_data[class_name]['confidences'].append(
-                list(result['confidences'].values())
-            )
-            class_data[class_name]['feature_stats'].append(
-                list(result['feature_stats'].values())
-            )
-    
-    # Confidence Distribution Plot
-    plt.figure(figsize=(12, 6))
-    positions = np.arange(len(analysis_results.keys()))
-    width = 0.2
-    
-    for i, technique in enumerate(['GradCAM', 'GradCAM++', 'LayerCAM','ScoreCAM']):
-        confidences = [np.mean([sample[i] for sample in class_data[cls]['confidences']])
-                      for cls in analysis_results.keys()]
-        errors = [np.std([sample[i] for sample in class_data[cls]['confidences']])
-                 for cls in analysis_results.keys()]
+    Args:
+        file_path (str): Path to the input audio file
+        save_path (str): Path where the processed audio will be saved
+        target_sample_rate (int): Target sample rate for the audio
+        chunk_length_seconds (float): Length of each chunk in seconds
+        chunk_index (int): Index of the chunk to save (default: 0)
         
-        plt.bar(positions + i*width, confidences, width,
-                label=technique, yerr=errors, capsize=5)
-    
-    plt.xlabel('Class')
-    plt.ylabel('Average Confidence')
-    plt.title('CAM Technique Confidence Comparison')
-    plt.xticks(positions + width, analysis_results.keys())
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'confidence_comparison.png'))
-    plt.close()
-    
-    # Create correlation matrices
-    for class_name in analysis_results.keys():
-        create_correlation_matrix(class_name, analysis_results[class_name], save_dir)
-
-def create_correlation_matrix(class_name: str, results: List[Dict], save_dir: str) -> None:
-    """Create and save correlation matrix for features and confidences"""
-    data = []
-    columns = (
-        ['GradCAM', 'GradCAM++', 'ScoreCAM'] +
-        ['ZCR', 'RMS', 'Spectral_Centroid']
-    )
-    
-    for result in results:
-        row = (
-            list(result['confidences'].values()) +
-            list(result['feature_stats'].values())
-        )
-        data.append(row)
-    
-    correlation_matrix = np.corrcoef(np.array(data).T)
-    
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(correlation_matrix, 
-               xticklabels=columns,
-               yticklabels=columns,
-               annot=True,
-               cmap='coolwarm',
-               center=0)
-    plt.title(f'{class_name} - Feature and Confidence Correlations')
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, f'{class_name.lower()}_correlations.png'))
-    plt.close()
-
-def generate_summary_report(analysis_results: Dict[str, List[Dict]], 
-                          save_dir: str, config: Dict[str, Any]) -> None:
-    """Generate comprehensive summary report"""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    report_path = os.path.join(save_dir, 'analysis_summary.txt')
-    
-    with open(report_path, 'w') as f:
-        f.write("Audio Classification XAI Analysis Summary\n")
-        f.write("=====================================\n\n")
-        f.write(f"Analysis performed at: {timestamp}\n")
-        f.write(f"Model type: {config['model_type']}\n")
-        f.write(f"Feature type: {config['feature_params']['type']}\n\n")
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Load audio
+        waveform, sr = torchaudio.load(file_path)
         
-        for class_name, results in analysis_results.items():
-            f.write(f"\n{class_name} Analysis:\n")
-            f.write("-" * (len(class_name) + 10) + "\n")
+        # Resample if necessary
+        if sr != target_sample_rate:
+            resampler = torchaudio.transforms.Resample(sr, target_sample_rate)
+            waveform = resampler(waveform)
             
-            for i, result in enumerate(results):
-                f.write(f"\nSample {i+1}:\n")
-                f.write("CAM Confidences:\n")
-                for technique, conf in result['confidences'].items():
-                    f.write(f"  {technique}: {conf:.4f}\n")
-                
-                f.write("\nFeature Statistics:\n")
-                for feat, value in result['feature_stats'].items():
-                    f.write(f"  {feat}: {value:.4f}\n")
+        # Convert to mono if stereo
+        if waveform.shape[0] > 1:
+            waveform = torch.mean(waveform, dim=0, keepdim=True)
+        
+        # Calculate chunk parameters
+        chunk_length_samples = int(chunk_length_seconds * target_sample_rate)
+        start_sample = chunk_index * chunk_length_samples
+        end_sample = start_sample + chunk_length_samples
+        
+        # Extract the chunk
+        if end_sample <= waveform.shape[1]:
+            chunk = waveform[:, start_sample:end_sample]
+        else:
+            # If chunk would extend beyond the audio, pad with zeros
+            chunk = torch.zeros((1, chunk_length_samples), dtype=waveform.dtype)
+            remaining_samples = waveform.shape[1] - start_sample
+            if remaining_samples > 0:
+                chunk[:, :remaining_samples] = waveform[:, start_sample:]
             
-            f.write("\n" + "="*50 + "\n")
+        # Save processed chunk
+        torchaudio.save(save_path, chunk, target_sample_rate)
+        return True
+        
+    except Exception as e:
+        logging.error(f"Error processing audio file {file_path}: {str(e)}")
+        logging.error(traceback.format_exc())
+        return False
 
+
+
+    
 def main():
     """Main function for comprehensive XAI analysis with consistent signal processing"""
     # Configuration
-    model_path =  '/Users/zainhazzouri/projects/Master-thesis-experiments/results/U_Net_LFCC_32_len5.0S/U_Net_LFCC_32_len5.0S.pth'
+    model_path =  '/Users/zainhazzouri/projects/Master-thesis-experiments/results/AttentionUNet_LFCC_32_len5.0S/AttentionUNet_LFCC_32_len5.0S.pth'
 
     
-        # Extract parameters from the model filename
+    # Extract parameters from the model filename
     model_type, feature_type, n_mfcc, length_in_seconds = parse_model_filename(model_path)
 
     # Update the config dictionary
     config = {
         'model_path': model_path,
         'test_data_path': "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/",
-        'save_dir': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/U_Net_LFCC_32_len5.0S/cam',
+        'save_dir': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/AttentionUNet_LFCC_32_len5.0S/cam',
         'model_type': model_type,
         'random_seed': 42,
         'feature_params': {
@@ -779,32 +597,9 @@ def main():
                     print(f"Processing {class_names[class_idx]} sample {i + 1}")
                     print(f"Using file: {file_path}")
 
-                    # Generate comprehensive visualizations
-                    y, sr = visualize_sample_with_features(
-                        file_path=file_path,
-                        save_dir=save_dir,
-                        class_name=class_names[class_idx],
-                        sample_num=i+1,
-                        feature_type=feature_params['type'],
-                        n_mfcc=n_mfcc,
-                        sr=sr,
-                        length_in_seconds=length_in_seconds,
-                        n_fft=n_fft,
-                        hop_length=hop_length,
-                        win_length=win_length
-                    )
 
-                    # Analyze audio features
-                    feature_results = analyze_audio_features(
-                        y=y,
-                        sr=sr,
-                        output_dir=save_dir,
-                        class_name=class_names[class_idx],
-                        sample_num=i+1,
-                        n_fft=n_fft,
-                        hop_length=hop_length,
-                        win_length=win_length
-                    )
+
+                    
 
                     # Generate CAM visualizations
                     cam_results = analyze_with_multiple_cams(
@@ -815,36 +610,43 @@ def main():
                         device=device
                     )
 
-                    # Save results
+
+
+                    # Save original audio file with AudioProcessor's preprocessing
                     audio_save_path = os.path.join(
                         save_dir,
                         f"{class_names[class_idx].lower()}_sample_{i+1}.wav"
                     )
-                    sf.write(audio_save_path, y, sr, subtype='PCM_16')
-
-                    # Store results
-                    sample_results = {
-                        'sample_idx': i+1,
-                        'audio_path': audio_save_path,
-                        'confidences': {name: conf for name, (_, conf) in cam_results.items()},
-                        'feature_stats': {
-                            'zcr_mean': float(np.mean(feature_results['zcr'])),
-                            'rms_mean': float(np.mean(feature_results['rms'])),
-                            'spectral_centroid_mean': float(np.mean(feature_results['spectral_centroids']))
-                        },
-                        'cam_results': cam_results
-                    }
+                    
+                    if save_processed_audio(
+                        file_path=file_path, 
+                        save_path=audio_save_path,
+                        target_sample_rate=config['feature_params']['sample_rate'],
+                        chunk_length_seconds=config['feature_params']['length_in_seconds']
+                    ):
+                        # Continue with analysis
+                        sample_results = {
+                            'sample_idx': i+1,
+                            'audio_path': audio_save_path,
+                            'file_path': file_path,
+                            'confidences': {name: conf for name, (_, conf) in cam_results.items()},
+                            'cam_results': cam_results
+                        }
 
                     # Generate combined visualization
                     plot_multiple_cams_with_features(
                         input_tensor=input_tensor,
-                        audio_features=feature_results,
                         results=cam_results,
                         class_name=class_names[class_idx],
                         save_path=os.path.join(
                             save_dir,
                             f'combined_analysis_{class_names[class_idx].lower()}_sample_{i+1}.png'
-                        )
+                        ),
+                        feature_type=feature_params['type'],
+                        n_mfcc=feature_params['n_mfcc'],
+                        length_in_seconds=feature_params['length_in_seconds'],
+                        sr=feature_params['sample_rate'],
+                        hop_length=feature_params['hop_length']
                     )
 
                 except Exception as e:
@@ -854,9 +656,6 @@ def main():
 
                 analysis_results[class_names[class_idx]].append(sample_results)
 
-        # Generate final analyses
-        create_comparative_analysis(analysis_results, save_dir)
-        generate_summary_report(analysis_results, save_dir, config)
 
         # Save final metadata
         metadata = {
@@ -879,6 +678,11 @@ def main():
         with open(os.path.join(save_dir, 'analysis_complete.txt'), 'w') as f:
             f.write(f"Analysis completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
+        # save GIF 
+        # results_directory = save_dir 
+        # create_attention_maps_gif(results_directory, sample_nums=[1, 2])
+    
+    
         print("\nAnalysis completed successfully!")
         print(f"Results saved in: {save_dir}")
         print("\nGenerated files:")
@@ -895,38 +699,7 @@ def main():
         logging.error(traceback.format_exc())
         raise
 
-def create_attention_maps_gif(results_dir: str) -> None:
-    """Create animated GIFs of attention maps over time"""
-    for class_name in ['music', 'speech']:
-        for technique in ['GradCAM', 'GradCAM++', 'ScoreCAM']:
-            frames = []
-            results_path = os.path.join(results_dir, f'combined_analysis_{class_name}_sample_1.png')
-            
-            if os.path.exists(results_path):
-                img = plt.imread(results_path)
-                
-                # Process frames
-                num_frames = img.shape[1] // 4
-                for i in range(num_frames):
-                    plt.figure(figsize=(10, 4))
-                    
-                    plt.subplot(1, 2, 1)
-                    plt.imshow(img[:, i*4:(i+1)*4], aspect='auto')
-                    plt.title(f'{class_name.capitalize()} {technique} - Frame {i+1}')
-                    plt.axis('off')
-                    
-                    plt.tight_layout()
-                    
-                    # Convert plot to image
-                    fig = plt.gcf()
-                    plt.close()
-                    fig.canvas.draw()
-                    frame = np.array(fig.canvas.renderer.buffer_rgba())
-                    frames.append(frame)
-                
-                # Save as GIF
-                gif_path = os.path.join(results_dir, f'{class_name}_{technique}_attention.gif')
-                imageio.mimsave(gif_path, frames, duration=0.2)
+
 
 if __name__ == "__main__":
     try:
@@ -934,3 +707,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Fatal error during execution: {e}")
         traceback.print_exc()
+
+
