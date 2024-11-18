@@ -192,7 +192,8 @@ def plot_multiple_cams_with_features(input_tensor: torch.Tensor,
                                      n_mfcc: int,
                                      length_in_seconds: float,
                                      sr: int,
-                                     hop_length: int):
+                                     hop_length: int,
+                                     audio_path: str):
     """
     Create comprehensive visualization combining CAM results with audio features.
     """
@@ -206,17 +207,30 @@ def plot_multiple_cams_with_features(input_tensor: torch.Tensor,
         # Compute time axis manually
         times = np.linspace(0, length_in_seconds, n_frames)
 
-        # Calculate total rows
+        # Compute Mel spectrogram from audio file
+        print(f"Loading audio file: {audio_path}")
+        audio, sr = librosa.load(audio_path, sr=sr)
+        mel_spec = librosa.feature.melspectrogram(y=audio, sr=sr, hop_length=hop_length)
+        mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
+        n_mel_coefficients, n_mel_frames = mel_spec_db.shape
+
+        # Compute time axis for mel spectrogram
+        mel_times = np.linspace(0, length_in_seconds, n_mel_frames)
+
+        # Total number of rows and columns
         num_techniques = len(results)
-        total_rows = num_techniques + 1
+        total_rows = num_techniques
+        total_cols = 4
 
-        # Create the figure
-        fig = plt.figure(figsize=(20, 5 * total_rows))
+        fig, axes = plt.subplots(nrows=total_rows, ncols=total_cols, figsize=(20, 5 * total_rows))
 
-        # Plot CAM results
+        if total_rows == 1:
+            axes = np.expand_dims(axes, axis=0)
+
+        # Plotting for each CAM technique
         for idx, (technique_name, (heatmap, confidence)) in enumerate(results.items()):
             print(f"Processing {technique_name}...")
-            row = idx + 1
+            row = idx
             heatmap_data = heatmap.squeeze().cpu().numpy()
             print(f"heatmap_data.shape before resizing: {heatmap_data.shape}")
 
@@ -234,62 +248,73 @@ def plot_multiple_cams_with_features(input_tensor: torch.Tensor,
             else:
                 heatmap_resized = heatmap_data
 
-            # Original features subplot
-            ax1 = plt.subplot2grid((total_rows, 3), (row, 0))
-            img1 = librosa.display.specshow(
-                input_data,
-                x_axis='time',
-                y_axis=None,  # Disable automatic scaling
-                sr=sr,
-                hop_length=hop_length,
-                ax=ax1
+            # Mel spectrogram subplot
+            ax_mel = axes[row, 0]
+            img_mel = ax_mel.imshow(
+                mel_spec_db,
+                aspect='auto',
+                origin='lower',
+                extent=[0, length_in_seconds, 0, n_mel_coefficients],
+                cmap='inferno'
             )
-            ax1.set_ylabel(f'{feature_type} Coefficient Index')
-            ax1.set_xlabel('Time (s)')
-            ax1.set_ylim(0, n_coefficients)
-            ax1.set_yticks(np.linspace(0, n_coefficients, 5))  # Adjust as needed
-            plt.colorbar(img1, ax=ax1)
-            ax1.set_title(f'{technique_name} Input')
+            ax_mel.set_ylabel('Mel Frequency Bin')
+            ax_mel.set_xlabel('Time (s)')
+            ax_mel.set_ylim(0, n_mel_coefficients)
+            ax_mel.set_title(f'{technique_name} Mel Spectrogram')
+            fig.colorbar(img_mel, ax=ax_mel)
+
+            # Original features subplot
+            ax_input = axes[row, 1]
+            img_input = ax_input.imshow(
+                input_data,
+                aspect='auto',
+                origin='lower',
+                extent=[0, length_in_seconds, 0, n_coefficients],
+                cmap='viridis'
+            )
+            ax_input.set_ylabel(f'{feature_type} Coefficient Index')
+            ax_input.set_xlabel('Time (s)')
+            ax_input.set_ylim(0, n_coefficients)
+            ax_input.set_title(f'{technique_name} Input Features')
+            fig.colorbar(img_input, ax=ax_input)
 
             # Heatmap subplot
-            ax2 = plt.subplot2grid((total_rows, 3), (row, 1))
-            img2 = ax2.imshow(
+            ax_heatmap = axes[row, 2]
+            img_heatmap = ax_heatmap.imshow(
                 heatmap_resized,
                 aspect='auto',
                 origin='lower',
+                extent=[0, length_in_seconds, 0, n_coefficients],
                 cmap='jet'
             )
-            ax2.set_ylabel(f'{feature_type} Coefficient Index')
-            ax2.set_xlabel('Time (s)')
-            ax2.set_ylim(0, n_coefficients)
-            ax2.set_yticks(np.linspace(0, n_coefficients, 5))  # Adjust as needed
-            plt.colorbar(img2, ax=ax2)
-            ax2.set_title(f'{technique_name} Heatmap')
+            ax_heatmap.set_ylabel(f'{feature_type} Coefficient Index')
+            ax_heatmap.set_xlabel('Time (s)')
+            ax_heatmap.set_ylim(0, n_coefficients)
+            ax_heatmap.set_title(f'{technique_name} Heatmap')
+            fig.colorbar(img_heatmap, ax=ax_heatmap)
 
             # Overlay subplot
-            ax3 = plt.subplot2grid((total_rows, 3), (row, 2))
-            img3 = librosa.display.specshow(
+            ax_overlay = axes[row, 3]
+            img_overlay = ax_overlay.imshow(
                 input_data,
-                x_axis='time',
-                y_axis=None,  # Disable automatic scaling
-                sr=sr,
-                hop_length=hop_length,
-                ax=ax3
+                aspect='auto',
+                origin='lower',
+                extent=[0, length_in_seconds, 0, n_coefficients],
+                cmap='viridis'
             )
-            
-            ax3.imshow(
+            ax_overlay.imshow(
                 heatmap_resized,
                 cmap='jet',
                 alpha=0.5,
                 aspect='auto',
-                origin='lower'
+                origin='lower',
+                extent=[0, length_in_seconds, 0, n_coefficients]
             )
-            ax3.set_ylabel(f'{feature_type} Coefficient Index')
-            ax3.set_xlabel('Time (s)')
-            ax3.set_ylim(0, n_coefficients)
-            ax3.set_yticks(np.linspace(0, n_coefficients, 5))  # Adjust as needed
-            plt.colorbar(img3, ax=ax3)
-            ax3.set_title(f'{technique_name} Overlay (Conf: {confidence:.2f})')
+            ax_overlay.set_ylabel(f'{feature_type} Coefficient Index')
+            ax_overlay.set_xlabel('Time (s)')
+            ax_overlay.set_ylim(0, n_coefficients)
+            ax_overlay.set_title(f'{technique_name} Overlay (Conf: {confidence:.2f})')
+            fig.colorbar(img_overlay, ax=ax_overlay)
 
         print("Finalizing plot...")
         plt.tight_layout()
@@ -302,7 +327,6 @@ def plot_multiple_cams_with_features(input_tensor: torch.Tensor,
         print(f"Error in plotting: {str(e)}")
         traceback.print_exc()
         raise
-
 
 
 
@@ -370,7 +394,7 @@ def find_samples_with_seed(model: torch.nn.Module, loader: DataLoader,
     """Find samples with fixed random seed for reproducibility"""
     set_random_seeds(seed)
     
-    class_samples = {0: [], 1: []}
+    class_samples = {0: [], 1: [],3:[], 4:[], 5:[]}
     print("Collecting candidate samples...")
     
     with torch.no_grad():
@@ -390,7 +414,7 @@ def find_samples_with_seed(model: torch.nn.Module, loader: DataLoader,
                         sample_idx
                     ))
     
-    selected_samples = {0: [], 1: []}
+    selected_samples = {0: [], 1: [],3:[], 4:[], 5:[]}
     for class_idx in class_samples:
         if len(class_samples[class_idx]) >= samples_per_class:
             selected_indices = random.sample(range(len(class_samples[class_idx])), samples_per_class)
@@ -497,7 +521,7 @@ def main():
         'test_data_path': "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/",
         'save_dir': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/AttentionUNet_LFCC_32_len5.0S/cam',
         'model_type': model_type,
-        'random_seed': 42,
+        'random_seed': 7,
         'feature_params': {
             'type': feature_type,
             'n_mfcc': n_mfcc,
@@ -508,7 +532,7 @@ def main():
             'win_length': 2048
         },
         'batch_size': 16,
-        'samples_per_class': 2
+        'samples_per_class': 5
     }
     
 
@@ -646,7 +670,8 @@ def main():
                         n_mfcc=feature_params['n_mfcc'],
                         length_in_seconds=feature_params['length_in_seconds'],
                         sr=feature_params['sample_rate'],
-                        hop_length=feature_params['hop_length']
+                        hop_length=feature_params['hop_length'],
+                        audio_path=file_path  # Added this line to pass the audio path
                     )
 
                 except Exception as e:
