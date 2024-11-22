@@ -521,7 +521,7 @@ def main():
         'test_data_path': "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/",
         'save_dir': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/AttentionUNet_LFCC_32_len5.0S/cam',
         'model_type': model_type,
-        'random_seed': 7,
+        'random_seed': 42,
         'feature_params': {
             'type': feature_type,
             'n_mfcc': n_mfcc,
