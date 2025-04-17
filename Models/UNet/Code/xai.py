@@ -1,0 +1,761 @@
+import torch
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+import random
+import numpy as np
+import librosa
+import librosa.display
+import soundfile as sf
+import json
+import logging
+import traceback
+from datetime import datetime
+from torch.utils.data import DataLoader
+from datapreprocessing import AudioProcessor
+from models import U_Net, R2U_Net, R2AttU_Net, AttentionUNet
+import imageio
+from typing import Dict, List, Tuple, Any, Optional
+import warnings
+import re
+import scipy
+from scipy.fftpack import dct  # Import dct for LFCC computation
+import torchaudio
+
+warnings.filterwarnings('ignore')
+
+
+def parse_model_filename(model_path):
+    filename = os.path.splitext(os.path.basename(model_path))[0]  # Remove extension if any
+    pattern = r'^(.*?)_([^_]+(?:-[^_]+)*)_(\d+)_len([\d\.]+)S$'
+    match = re.match(pattern, filename)
+    if match:
+        model_type = match.group(1)
+        feature_type = match.group(2)
+        n_mfcc = int(match.group(3))
+        length_in_seconds = float(match.group(4))
+        return model_type, feature_type, n_mfcc, length_in_seconds
+    else:
+        raise ValueError(f"Model filename '{filename}' does not match the expected pattern.")
+    
+
+
+class BaseCAM:
+    def __init__(self, model, target_layer):
+        self.model = model
+        self.target_layer = target_layer
+        self.activations = None
+        self.gradients = None
+        
+        self.hook_handles = []
+        self.hook_handles.append(
+            self.target_layer.register_forward_hook(self._forward_hook)
+        )
+        self.hook_handles.append(
+            self.target_layer.register_full_backward_hook(self._backward_hook)
+        )
+    
+    def _forward_hook(self, module, input, output):
+        self.activations = output
+        
+    def _backward_hook(self, module, grad_input, grad_output):
+        self.gradients = grad_output[0]
+    
+    def get_heatmap(self, input_tensor, target_class):
+        # Forward pass
+        output = self.model(input_tensor)
+        
+        if target_class is None:
+            target_class = output.argmax(dim=1)
+            
+        # Zero gradients
+        self.model.zero_grad()
+        
+        # Backward pass
+        output[:, target_class].backward()
+        
+        # Generate cam
+        weights = self._get_weights()
+        cam = self._generate_cam(weights)
+        
+        # Detach cam from computation graph
+        cam = cam.detach()
+        
+        # Remove hooks
+        for handle in self.hook_handles:
+            handle.remove()
+            
+        return cam, output.detach()
+
+    def _get_weights(self):
+        raise NotImplementedError
+        
+    def _generate_cam(self, weights):
+        raise NotImplementedError
+
+class VanillaGradCAM(BaseCAM):
+    def _get_weights(self):
+        # Add small epsilon to avoid numerical instability
+        eps = 1e-8
+        gradients = self.gradients.detach()
+        
+        # Use global average pooling but preserve information from all coefficients
+        weights = torch.mean(gradients, dim=(2, 3), keepdim=True) + eps
+        
+        # Apply softmax to weights to better distribute attention
+        weights = F.softmax(weights, dim=1)
+        
+        return weights
+    
+    def _generate_cam(self, weights):
+        # Calculate weighted activations
+        cam = (weights * self.activations.detach()).sum(dim=1, keepdim=True)
+        
+        # Use RELU but with a small slope for negative values
+        cam = F.leaky_relu(cam, negative_slope=0.01)
+        
+        # Min-max normalization with epsilon
+        cam = cam - cam.min()
+        cam = cam / (cam.max() + 1e-7)
+        
+        # Apply mild gaussian smoothing to avoid sharp transitions
+        cam = F.avg_pool2d(cam, kernel_size=3, stride=1, padding=1)
+        
+        return cam
+
+
+class GradCAMPlusPlus(BaseCAM):
+    def _get_weights(self):
+        gradients = self.gradients.detach()
+        activations = self.activations.detach()
+        
+        alpha_num = gradients.pow(2)
+        alpha_denom = alpha_num.mul(2) + \
+                     activations.mul(gradients.pow(3)).sum(dim=(2, 3), keepdim=True)
+        alpha = alpha_num.div(alpha_denom + 1e-7)
+        
+        weights = (alpha * F.relu(gradients)).sum(dim=(2, 3), keepdim=True)
+        return weights
+    
+    def _generate_cam(self, weights):
+        cam = (weights * self.activations.detach()).sum(dim=1, keepdim=True)
+        cam = F.relu(cam)
+        
+        cam = cam - cam.min()
+        cam = cam / (cam.max() + 1e-7)
+        
+        return cam
+
+
+class LayerCAM(BaseCAM):
+    def _get_weights(self):
+        return self.gradients.detach()
+    
+    def _generate_cam(self, weights):
+        cam = weights * self.activations.detach()
+        cam = F.relu(cam)
+        cam = cam.sum(dim=1, keepdim=True)
+        
+        cam = cam - cam.min()
+        cam = cam / (cam.max() + 1e-7)
+        
+        return cam
+
+
+class ScoreCAM(BaseCAM):
+    def get_heatmap(self, input_tensor, target_class):
+        self.input_tensor = input_tensor
+        self.input_size = input_tensor.shape[2:]
+        self.target_class = target_class
+        
+        with torch.no_grad():
+            output = self.model(input_tensor)
+            
+        if target_class is None:
+            target_class = output.argmax(dim=1)
+            
+        self.target_class = target_class
+        
+        weights = self._get_weights()
+        cam = self._generate_cam(weights)
+        
+        return cam.detach(), output.detach()
+    
+    def _get_weights(self):
+        batch_size, channels, _, _ = self.activations.shape
+        weights = torch.zeros(batch_size, channels, 1, 1, device=self.activations.device)
+        
+        activations = F.relu(self.activations.detach())
+        for i in range(channels):
+            channel_activation = activations[:, i:i+1, :, :]
+            normalized = F.interpolate(
+                channel_activation,
+                size=self.input_size,
+                mode='bilinear',
+                align_corners=False
+            )
+            normalized = (normalized - normalized.min()) / (normalized.max() - normalized.min() + 1e-7)
+            
+            with torch.no_grad():
+                output = self.model(normalized * self.input_tensor)
+                weights[:, i] = output[:, self.target_class].unsqueeze(-1).unsqueeze(-1)
+                
+        return F.softmax(weights, dim=1)
+    
+    def _generate_cam(self, weights):
+        cam = (weights * self.activations.detach()).sum(dim=1, keepdim=True)
+        cam = F.relu(cam)
+        
+        cam = cam - cam.min()
+        cam = cam / (cam.max() + 1e-7)
+        
+        return cam
+
+def plot_multiple_cams_with_features(input_tensor: torch.Tensor,
+                                     results: Dict[str, Tuple[torch.Tensor, float]],
+                                     class_name: str, save_path: str,
+                                     feature_type: str,
+                                     n_mfcc: int,
+                                     length_in_seconds: float,
+                                     sr: int,
+                                     hop_length: int,
+                                     audio_path: str):
+    """
+    Create comprehensive visualization combining CAM results with audio features.
+    """
+    try:
+        print("Starting visualization...")
+        input_data = input_tensor.squeeze().cpu().numpy()
+        n_coefficients, n_frames = input_data.shape
+        print(f"input_data.shape: {input_data.shape}")
+        print(f"Number of coefficients (features): {n_coefficients}")
+
+        # Compute time axis manually
+        times = np.linspace(0, length_in_seconds, n_frames)
+
+        # Compute Mel spectrogram from audio file
+        print(f"Loading audio file: {audio_path}")
+        audio, sr = librosa.load(audio_path, sr=sr)
+        mel_spec = librosa.feature.melspectrogram(y=audio, sr=sr, hop_length=hop_length)
+        mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
+        n_mel_coefficients, n_mel_frames = mel_spec_db.shape
+
+        # Compute time axis for mel spectrogram
+        mel_times = np.linspace(0, length_in_seconds, n_mel_frames)
+
+        # Total number of rows and columns
+        num_techniques = len(results)
+        total_rows = num_techniques
+        total_cols = 4
+
+        fig, axes = plt.subplots(nrows=total_rows, ncols=total_cols, figsize=(20, 5 * total_rows))
+
+        if total_rows == 1:
+            axes = np.expand_dims(axes, axis=0)
+
+        # Plotting for each CAM technique
+        for idx, (technique_name, (heatmap, confidence)) in enumerate(results.items()):
+            print(f"Processing {technique_name}...")
+            row = idx
+            heatmap_data = heatmap.squeeze().cpu().numpy()
+            print(f"heatmap_data.shape before resizing: {heatmap_data.shape}")
+
+            # Resize heatmap to match input data dimensions if necessary
+            if heatmap_data.shape != input_data.shape:
+                heatmap_resized = scipy.ndimage.zoom(
+                    heatmap_data,
+                    (
+                        n_coefficients / heatmap_data.shape[0],
+                        n_frames / heatmap_data.shape[1]
+                    ),
+                    order=1
+                )
+                print(f"heatmap_resized.shape after resizing: {heatmap_resized.shape}")
+            else:
+                heatmap_resized = heatmap_data
+
+            # Mel spectrogram subplot
+            ax_mel = axes[row, 0]
+            img_mel = ax_mel.imshow(
+                mel_spec_db,
+                aspect='auto',
+                origin='lower',
+                extent=[0, length_in_seconds, 0, n_mel_coefficients],
+                cmap='inferno'
+            )
+            ax_mel.set_ylabel('Mel Frequency Bin')
+            ax_mel.set_xlabel('Time (s)')
+            ax_mel.set_ylim(0, n_mel_coefficients)
+            ax_mel.set_title(f'{technique_name} Mel Spectrogram')
+            fig.colorbar(img_mel, ax=ax_mel)
+
+            # Original features subplot
+            ax_input = axes[row, 1]
+            img_input = ax_input.imshow(
+                input_data,
+                aspect='auto',
+                origin='lower',
+                extent=[0, length_in_seconds, 0, n_coefficients],
+                cmap='viridis'
+            )
+            ax_input.set_ylabel(f'{feature_type} Coefficient Index')
+            ax_input.set_xlabel('Time (s)')
+            ax_input.set_ylim(0, n_coefficients)
+            ax_input.set_title(f'{technique_name} Input Features')
+            fig.colorbar(img_input, ax=ax_input)
+
+            # Heatmap subplot
+            ax_heatmap = axes[row, 2]
+            img_heatmap = ax_heatmap.imshow(
+                heatmap_resized,
+                aspect='auto',
+                origin='lower',
+                extent=[0, length_in_seconds, 0, n_coefficients],
+                cmap='jet'
+            )
+            ax_heatmap.set_ylabel(f'{feature_type} Coefficient Index')
+            ax_heatmap.set_xlabel('Time (s)')
+            ax_heatmap.set_ylim(0, n_coefficients)
+            ax_heatmap.set_title(f'{technique_name} Heatmap')
+            fig.colorbar(img_heatmap, ax=ax_heatmap)
+
+            # Overlay subplot
+            ax_overlay = axes[row, 3]
+            img_overlay = ax_overlay.imshow(
+                input_data,
+                aspect='auto',
+                origin='lower',
+                extent=[0, length_in_seconds, 0, n_coefficients],
+                cmap='viridis'
+            )
+            ax_overlay.imshow(
+                heatmap_resized,
+                cmap='jet',
+                alpha=0.5,
+                aspect='auto',
+                origin='lower',
+                extent=[0, length_in_seconds, 0, n_coefficients]
+            )
+            ax_overlay.set_ylabel(f'{feature_type} Coefficient Index')
+            ax_overlay.set_xlabel('Time (s)')
+            ax_overlay.set_ylim(0, n_coefficients)
+            ax_overlay.set_title(f'{technique_name} Overlay (Conf: {confidence:.2f})')
+            fig.colorbar(img_overlay, ax=ax_overlay)
+
+        print("Finalizing plot...")
+        plt.tight_layout()
+        print(f"Saving plot to: {save_path}")
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print("Plot completed successfully!")
+
+    except Exception as e:
+        print(f"Error in plotting: {str(e)}")
+        traceback.print_exc()
+        raise
+
+
+
+def set_random_seeds(seed: int = 42) -> None:
+    """Set random seeds for reproducibility"""
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
+
+def get_device() -> str:
+    """Determine the best available device"""
+    if torch.cuda.is_available():
+        return "cuda"
+    elif torch.backends.mps.is_built():
+        return "mps"
+    else:
+        return "cpu"
+
+def load_model(model_path: str, model_type: str, device: str) -> torch.nn.Module:
+    """Load model with proper device handling"""
+    model_classes = {
+        'U_Net': lambda: U_Net(img_ch=1, output_ch=2),
+        'R2U_Net': lambda: R2U_Net(img_ch=1, output_ch=2),
+        'R2AttU_Net': lambda: R2AttU_Net(img_ch=1, output_ch=2),
+        'AttentionUNet': lambda: AttentionUNet(mfcc_dim=32, output_ch=2)
+    }
+    
+    if model_type not in model_classes:
+        raise ValueError(f"Unknown model type: {model_type}")
+    
+    model = model_classes[model_type]()
+    
+    state_dict = torch.load(model_path, map_location=device)
+    new_state_dict = {k: v for k, v in state_dict.items() if not k.startswith('fc.')}
+    model.load_state_dict(new_state_dict, strict=False)
+    model = model.to(device)
+    
+    # Initialize fc layer
+    dummy_input = torch.randn(1, 1, 32, 112).to(device)
+    _ = model(dummy_input)
+    
+    if 'fc.weight' in state_dict:
+        model.fc.weight.data = state_dict['fc.weight'].to(device)
+        model.fc.bias.data = state_dict['fc.bias'].to(device)
+    
+    return model.eval()
+
+def get_target_layer(model: torch.nn.Module, model_type: str) -> torch.nn.Module:
+    """Get the target layer for CAM visualization"""
+    target_layers = {
+        'U_Net': lambda m: m.Up_conv2,
+        'AttentionUNet': lambda m: m.Up_conv2,
+        'R2U_Net': lambda m: m.Up_RRCNN2,
+        'R2AttU_Net': lambda m: m.Up_RRCNN2
+    }
+    return target_layers[model_type](model)
+
+def find_samples_with_seed(model: torch.nn.Module, loader: DataLoader, 
+                         device: str, samples_per_class: int = 2, 
+                         seed: int = 15) -> Dict[int, List[Tuple[torch.Tensor, int]]]:
+    """Find samples with fixed random seed for reproducibility"""
+    set_random_seeds(seed)
+    
+    class_samples = {0: [], 1: [],3:[], 4:[], 5:[]}
+    print("Collecting candidate samples...")
+    
+    with torch.no_grad():
+        for batch_idx, (inputs, labels) in enumerate(loader):
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            outputs = model(inputs)
+            preds = outputs.argmax(dim=1)
+            
+            for sample_idx in range(len(labels)):
+                label = labels[sample_idx].item()
+                if preds[sample_idx] == label:
+                    class_samples[label].append((
+                        inputs[sample_idx].cpu(),
+                        label,
+                        batch_idx,
+                        sample_idx
+                    ))
+    
+    selected_samples = {0: [], 1: [],3:[], 4:[], 5:[]}
+    for class_idx in class_samples:
+        if len(class_samples[class_idx]) >= samples_per_class:
+            selected_indices = random.sample(range(len(class_samples[class_idx])), samples_per_class)
+            selected_samples[class_idx] = [
+                (class_samples[class_idx][i][0], class_samples[class_idx][i][1])
+                for i in selected_indices
+            ]
+            print(f"Selected samples for class {class_idx} from batches: "
+                  f"{[class_samples[class_idx][i][2] for i in selected_indices]}, "
+                  f"indices: {[class_samples[class_idx][i][3] for i in selected_indices]}")
+        else:
+            print(f"Warning: Not enough samples for class {class_idx}. "
+                  f"Found {len(class_samples[class_idx])}, needed {samples_per_class}")
+    
+    return selected_samples
+
+def analyze_with_multiple_cams(model: torch.nn.Module, input_tensor: torch.Tensor, 
+                             target_layer: torch.nn.Module, class_idx: int, 
+                             device: str) -> Dict[str, Tuple[torch.Tensor, float]]:
+    """Analyze a sample with multiple CAM techniques"""
+    cam_techniques = {
+        'GradCAM': VanillaGradCAM(model, target_layer),
+        'GradCAM++': GradCAMPlusPlus(model, target_layer),
+        'LayerCAM': LayerCAM(model, target_layer),
+        'ScoreCAM': ScoreCAM(model, target_layer)
+    }
+    
+    results = {}
+    for name, cam in cam_techniques.items():
+        print(f"Generating {name} heatmap...")
+        heatmap, output = cam.get_heatmap(input_tensor.to(device), class_idx)
+        confidence = F.softmax(output, dim=1)[0, class_idx].item()
+        results[name] = (heatmap, confidence)
+    
+    return results
+
+
+def save_processed_audio(file_path: str, save_path: str, target_sample_rate: int, chunk_length_seconds: float, chunk_index: int = 0) -> bool:
+    """
+    Load, process, and save a specific chunk of an audio file.
+    
+    Args:
+        file_path (str): Path to the input audio file
+        save_path (str): Path where the processed audio will be saved
+        target_sample_rate (int): Target sample rate for the audio
+        chunk_length_seconds (float): Length of each chunk in seconds
+        chunk_index (int): Index of the chunk to save (default: 0)
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Load audio
+        waveform, sr = torchaudio.load(file_path)
+        
+        # Resample if necessary
+        if sr != target_sample_rate:
+            resampler = torchaudio.transforms.Resample(sr, target_sample_rate)
+            waveform = resampler(waveform)
+            
+        # Convert to mono if stereo
+        if waveform.shape[0] > 1:
+            waveform = torch.mean(waveform, dim=0, keepdim=True)
+        
+        # Calculate chunk parameters
+        chunk_length_samples = int(chunk_length_seconds * target_sample_rate)
+        start_sample = chunk_index * chunk_length_samples
+        end_sample = start_sample + chunk_length_samples
+        
+        # Extract the chunk
+        if end_sample <= waveform.shape[1]:
+            chunk = waveform[:, start_sample:end_sample]
+        else:
+            # If chunk would extend beyond the audio, pad with zeros
+            chunk = torch.zeros((1, chunk_length_samples), dtype=waveform.dtype)
+            remaining_samples = waveform.shape[1] - start_sample
+            if remaining_samples > 0:
+                chunk[:, :remaining_samples] = waveform[:, start_sample:]
+            
+        # Save processed chunk
+        torchaudio.save(save_path, chunk, target_sample_rate)
+        return True
+        
+    except Exception as e:
+        logging.error(f"Error processing audio file {file_path}: {str(e)}")
+        logging.error(traceback.format_exc())
+        return False
+
+
+
+    
+def main():
+    """Main function for comprehensive XAI analysis with consistent signal processing"""
+    # Configuration
+    model_path =  '/Users/zainhazzouri/projects/Master-thesis-experiments/results/AttentionUNet_LFCC_32_len5.0S/AttentionUNet_LFCC_32_len5.0S.pth'
+
+    
+    # Extract parameters from the model filename
+    model_type, feature_type, n_mfcc, length_in_seconds = parse_model_filename(model_path)
+
+    # Update the config dictionary
+    config = {
+        'model_path': model_path,
+        'test_data_path': "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/",
+        'save_dir': '/Users/zainhazzouri/projects/Master-thesis-experiments/results/AttentionUNet_LFCC_32_len5.0S/cam',
+        'model_type': model_type,
+        'random_seed': 42,
+        'feature_params': {
+            'type': feature_type,
+            'n_mfcc': n_mfcc,
+            'length_in_seconds': length_in_seconds,
+            'sample_rate': 44100,
+            'n_fft': 2048,
+            'hop_length': 512,
+            'win_length': 2048
+        },
+        'batch_size': 16,
+        'samples_per_class': 5
+    }
+    
+
+    try:
+        # Setup
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        save_dir = os.path.join(config['save_dir'], f"analysis_{timestamp}")
+        os.makedirs(save_dir, exist_ok=True)
+
+        # Initialize logging
+        logging.basicConfig(
+            filename=os.path.join(save_dir, 'analysis_log.txt'),
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+        logging.info("Analysis started")
+        logging.info(f"Configuration: {json.dumps(config, indent=2)}")
+
+        # Setup environment
+        device = get_device()
+        set_random_seeds(config['random_seed'])
+        logging.info(f"Using device: {device}")
+
+        # Load model and dataset using extracted parameters
+        model = load_model(config['model_path'], config['model_type'], device)
+        target_layer = get_target_layer(model, config['model_type'])
+
+        # Parameters for feature extraction
+        feature_params = config['feature_params']
+        sr = feature_params['sample_rate']
+        n_mfcc = feature_params['n_mfcc']
+        length_in_seconds = feature_params['length_in_seconds']
+        n_fft = feature_params['n_fft']
+        hop_length = feature_params['hop_length']
+        win_length = feature_params['win_length']
+
+        dataset = AudioProcessor(
+            audio_dir=config['test_data_path'],
+            n_mfcc=n_mfcc,
+            length_in_seconds=length_in_seconds,
+            type_of_transformation=feature_params['type']
+        )
+
+
+
+        loader = DataLoader(
+            dataset,
+            batch_size=config['batch_size'],
+            shuffle=True,
+            worker_init_fn=lambda worker_id: np.random.seed(config['random_seed'] + worker_id)
+        )
+
+        # Find samples
+        class_names = ['Music', 'Speech']
+        samples_found = find_samples_with_seed(
+            model=model,
+            loader=loader,
+            device=device,
+            samples_per_class=config['samples_per_class'],
+            seed=config['random_seed']
+        )
+
+        # Analysis results storage
+        analysis_results = {class_name: [] for class_name in class_names}
+
+        # Process each sample
+        for class_idx, samples in samples_found.items():
+            for i, (input_tensor, label) in enumerate(samples):
+                sample_results = {}
+
+                try:
+                    # Get audio file path
+                    
+                    matching_files = [
+                        (idx, filepath) for idx, (filepath, file_label) 
+                        in enumerate(dataset.audio_files_and_labels) 
+                        if file_label == class_idx
+                    ]
+                    
+                    if not matching_files:
+                        raise ValueError(f"No files found for class {class_idx}")
+                        
+                    # Use the first matching file for this class
+                    file_idx, file_path = matching_files[i]
+                    
+                    print(f"Processing {class_names[class_idx]} sample {i + 1}")
+                    print(f"Using file: {file_path}")
+
+
+
+                    
+
+                    # Generate CAM visualizations
+                    cam_results = analyze_with_multiple_cams(
+                        model=model,
+                        input_tensor=input_tensor.unsqueeze(0),
+                        target_layer=target_layer,
+                        class_idx=label,
+                        device=device
+                    )
+
+
+
+                    # Save original audio file with AudioProcessor's preprocessing
+                    audio_save_path = os.path.join(
+                        save_dir,
+                        f"{class_names[class_idx].lower()}_sample_{i+1}.wav"
+                    )
+                    
+                    if save_processed_audio(
+                        file_path=file_path, 
+                        save_path=audio_save_path,
+                        target_sample_rate=config['feature_params']['sample_rate'],
+                        chunk_length_seconds=config['feature_params']['length_in_seconds']
+                    ):
+                        # Continue with analysis
+                        sample_results = {
+                            'sample_idx': i+1,
+                            'audio_path': audio_save_path,
+                            'file_path': file_path,
+                            'confidences': {name: conf for name, (_, conf) in cam_results.items()},
+                            'cam_results': cam_results
+                        }
+
+                    # Generate combined visualization
+                    plot_multiple_cams_with_features(
+                        input_tensor=input_tensor,
+                        results=cam_results,
+                        class_name=class_names[class_idx],
+                        save_path=os.path.join(
+                            save_dir,
+                            f'combined_analysis_{class_names[class_idx].lower()}_sample_{i+1}.png'
+                        ),
+                        feature_type=feature_params['type'],
+                        n_mfcc=feature_params['n_mfcc'],
+                        length_in_seconds=feature_params['length_in_seconds'],
+                        sr=feature_params['sample_rate'],
+                        hop_length=feature_params['hop_length'],
+                        audio_path=file_path  # Added this line to pass the audio path
+                    )
+
+                except Exception as e:
+                    logging.error(f"Error processing {class_names[class_idx]} sample {i+1}: {str(e)}")
+                    logging.error(traceback.format_exc())
+                    sample_results['error'] = str(e)
+
+                analysis_results[class_names[class_idx]].append(sample_results)
+
+
+        # Save final metadata
+        metadata = {
+            'timestamp': timestamp,
+            'config': config,
+            'analysis_stats': {
+                'total_samples': sum(len(samples) for samples in analysis_results.values()),
+                'successful_analyses': sum(
+                    1 for samples in analysis_results.values()
+                    for sample in samples
+                    if 'error' not in sample
+                )
+            }
+        }
+
+        with open(os.path.join(save_dir, 'analysis_metadata.json'), 'w') as f:
+            json.dump(metadata, f, indent=2)
+
+        # Create completion marker
+        with open(os.path.join(save_dir, 'analysis_complete.txt'), 'w') as f:
+            f.write(f"Analysis completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+        # save GIF 
+        # results_directory = save_dir 
+        # create_attention_maps_gif(results_directory, sample_nums=[1, 2])
+    
+    
+        print("\nAnalysis completed successfully!")
+        print(f"Results saved in: {save_dir}")
+        print("\nGenerated files:")
+        for root, dirs, files in os.walk(save_dir):
+            level = root.replace(save_dir, '').count(os.sep)
+            indent = ' ' * 4 * level
+            subindent = ' ' * 4 * (level + 1)
+            print(f"{indent}{os.path.basename(root)}/")
+            for f in files:
+                print(f"{subindent}{f}")
+
+    except Exception as e:
+        logging.error(f"Fatal error during analysis: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
+
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        print(f"Fatal error during execution: {e}")
+        traceback.print_exc()

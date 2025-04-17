@@ -253,25 +253,57 @@ class AudioProcessor(Dataset):
 
 #%%
 def calculate_number_of_samples():
-    path_to_test = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/" 
-    # # #
-    val_dataset= AudioProcessor(audio_dir=path_to_test, n_mfcc=32, length_in_seconds=0.5, type_of_transformation='MFCC')
+    # Test dataset
+    path_to_test = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/test/"
+    test_dataset = AudioProcessor(
+        audio_dir=path_to_test, 
+        n_mfcc=32, 
+        length_in_seconds=5, 
+        type_of_transformation='MFCC'
+    )
     
-    val_dataset.count_chunks(val_dataset.load_audio_files_and_labels())
-
-
-    print(f"Validation dataset - Speech count: {val_dataset.speech_count}, Music count: {val_dataset.music_count}")
-    print(f"Validation dataset - Speech chunk count: {val_dataset.speech_chunk_count}, Music chunk count: {val_dataset.music_chunk_count}")
-    print(val_dataset[0][0].shape)
+    print("\nTest Dataset Statistics:")
+    print(f"Speech files: {len(test_dataset.speech_waves)}")
+    print(f"Music files: {len(test_dataset.music_waves)}")
     
+    # Process all test samples to count chunks
+    test_total_speech_chunks = 0
+    test_total_music_chunks = 0
+    for idx in range(len(test_dataset)):
+        features, label = test_dataset[idx]
+        if label == 1:  # Speech
+            test_total_speech_chunks += 1
+        else:  # Music
+            test_total_music_chunks += 1
+            
+    print(f"Total speech chunks: {test_total_speech_chunks}")
+    print(f"Total music chunks: {test_total_music_chunks}")
 
-    # path_to_train = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/train/"
-    # train_dataset = AudioProcessor(audio_dir=path_to_train)
-    # train_dataset.count_chunks(train_dataset.load_audio_files_and_labels())
-    # print(f"Training dataset - Speech count: {train_dataset.speech_count}, Music count: {train_dataset.music_count}")
-    # print(f"Training dataset - Speech chunk count: {train_dataset.speech_chunk_count}, Music chunk count: {train_dataset.music_chunk_count}")
-    # print(train_dataset[0][0].shape)
+    # Training dataset
+    path_to_train = "/Users/zainhazzouri/projects/Datapreprocessed/Bachelor_thesis_data/train/"
+    train_dataset = AudioProcessor(
+        audio_dir=path_to_train,
+        n_mfcc=32,
+        length_in_seconds=5,
+        type_of_transformation='MFCC'
+    )
     
+    print("\nTraining Dataset Statistics:")
+    print(f"Speech files: {len(train_dataset.speech_waves)}")
+    print(f"Music files: {len(train_dataset.music_waves)}")
+    
+    # Process all training samples to count chunks
+    train_total_speech_chunks = 0
+    train_total_music_chunks = 0
+    for idx in range(len(train_dataset)):
+        features, label = train_dataset[idx]
+        if label == 1:  # Speech
+            train_total_speech_chunks += 1
+        else:  # Music
+            train_total_music_chunks += 1
+            
+    print(f"Total speech chunks: {train_total_speech_chunks}")
+    print(f"Total music chunks: {train_total_music_chunks}")
 
 
 # %%
@@ -359,4 +391,5 @@ def test_audio_processor():
                 raise
 
 if __name__ == "__main__":
-    test_audio_processor()
+    # test_audio_processor()
+    calculate_number_of_samples()
